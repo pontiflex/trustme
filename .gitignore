@@ -1,4 +1,6 @@
 *.py[co]
+*~
+*.db
 
 # Packages
 *.egg
@@ -7,11 +9,19 @@ dist
 build
 eggs
 parts
-bin
 var
+bin
 sdist
 develop-eggs
 .installed.cfg
+
+# virtualenv
+include
+lib
+local
+
+# Scripts
+*.sh
 
 # Installer logs
 pip-log.txt

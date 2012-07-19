@@ -1,0 +1,278 @@
+from algorithms import size64, to64, from64
+from algorithms import rand64, slow_equals
+from authentication import User
+from ..models import Base, DBSession
+
+from pyramid.interfaces import ISession, ISessionFactory
+
+from zope.interface import implementer
+
+from sqlalchemy import Column, Sequence, ForeignKey
+from sqlalchemy import Boolean, Integer, String, Text, PickleType
+from sqlalchemy.orm import relationship, reconstructor
+
+from time import time
+
+
+__all__ = ['SessionFactory', 'Session']
+
+
+#TODO: HTTPS
+SECURE = False
+
+ID_BYTES = 40
+CSRF_BYTES = 40
+ADDR_LENGTH = 39
+COOKIE_NAME = 'SESSION_ID'
+EXPIRE_TIME = 3600
+
+
+_time = lambda: int(time())
+
+
+@implementer(ISessionFactory)
+class SessionFactory:
+	def __call__(self, request):
+		session = Session.active(request)
+		if session is None:
+			session = Session(request)
+			session._remember(request)
+		return session
+
+@implementer(ISession)
+class Session(Base):
+	__tablename__ = 'sessions'
+	id = Column(Integer, Sequence('session_id_seq'), primary_key=True)
+	cookie_id = Column(String(size64(ID_BYTES)), nullable=False,
+			default=lambda:rand64(ID_BYTES))
+	source = Column(String(ADDR_LENGTH))
+	csrf = Column(String(size64(CSRF_BYTES)),
+			default=None)
+	created = Column(Integer, nullable=False,
+			default=_time)
+	valid = Column(Boolean, nullable=False,
+			default=True)
+
+	def __init__(self, request):
+		self.source = request.client_addr
+		self._init(True)
+
+	@reconstructor
+	def _init(self, new=False):
+		self._dict = {}
+		self._loaded = False
+		self.new = new
+		self.changed = False
+
+	def __repr__(self):
+		id = 'None' if self.id is None else '%i' % self.id
+		pdict = {}
+		pdict.update(self)
+		return "<(Session %s::%s::%s)>" % (id, self.cookie_id, str(pdict))
+
+	def _remember(self, request):
+		def callback(req, resp):
+			#TODO: Figure out why the database fucks up without this...
+			req.session
+			resp.set_cookie(COOKIE_NAME, self.cookie_id, secure=SECURE, httponly=True)
+		request.add_response_callback(callback)
+		DBSession.add(self)
+
+	def age(self):
+		return _time()-self.created
+	def is_valid(self):
+		return self.valid and (EXPIRE_TIME < 0 or self.age() < EXPIRE_TIME)
+	def if_valid(self):
+		return self if self.is_valid() else None
+	def invalidate(self):
+		self.valid = False
+	def changed(self):
+		pass
+
+	def get_csrf_token(self):
+		if self.csrf is None:
+			self.new_csrf_token()
+		return self.csrf
+	def new_csrf_token(self):
+		self.csrf = to64(secure_random(CSRF_BYTES))
+		return self.csrf
+
+	def _flash_query(self, queue):
+		return (DBSession.query(Flash).filter(Flash.session==self).
+				filter(Flash.queue==queue))
+	def flash(self, msg, queue='', allow_duplicate=True):
+		if not allow_duplicate:
+			if (self._flash_query(queue).filter(Flash.msg==msg).first()):
+				return
+		DBSession.add(Flash(self, queue, msg))
+	def peek_flash(self, queue=''):
+		return map((lambda(f): f.msg),
+					self._flash_query(queue).order_by(Flash.num.asc()).all())
+	def pop_flash(self, queue=''):
+		flash = self.peek_flash()
+		self._flash_query(queue).delete()
+		return flash
+
+	def _val_query(self, k=None):
+		if self not in DBSession:
+			DBSession.add(self)
+		q = DBSession.query(SessionValue).filter(SessionValue.session==self)
+		return q if k is None else q.filter(SessionValue.name==k)
+	def _get(self, k=None):
+		q = self._val_query(k)
+		return q.all() if k is None else q.first()
+	def _store(self, val):
+		if val is not None:
+			self._dict[val.name] = val
+	def _load(self, k=None):
+		if self._loaded:
+			return
+		q = self._val_query(k)
+		if k is None:
+			self._dict = {v.name:v for v in q.all()}
+			self._loaded = True
+		elif k not in self._dict:
+			self._store(q.first())
+
+	def __contains__(self, k):
+		if k is None:
+			raise ValueError()
+		self._load(k)
+		return k in self._dict
+	def __getitem__(self, k):
+		if k is None:
+			raise ValueError()
+		self._load(k)
+		if k in self._dict:
+			return self._dict[k].value
+		else:
+			raise KeyError()
+	def __setitem__(self, k, v):
+		if k is None:
+			raise ValueError()
+		self._load(k)
+		if k not in self._dict:
+			val = SessionValue(self, k, v)
+			DBSession.add(val)
+			self._store(val)
+		else:
+			self._dict[k].value = v
+	def __delitem__(self, k):
+		if k is None:
+			raise ValueError()
+		if not self._val_query(k).delete():
+			raise KeyError()
+		if k in self._dict:
+			del self._dict[k]
+	def __iter__(self):
+		return self.iterkeys()
+
+	def keys(self):
+		self._load()
+		return self._dict.keys()
+	def values(self):
+		self._load()
+		return [v.value for v in self._dict.values()]
+	def items(self):
+		self._load()
+		return [(v.name, v.value) for v in self._dict.values()]
+	def clear(self):
+		self._val_query().delete()
+		self._dict = {}
+
+	def _iter(self, iterf, yieldf):
+		if self._loaded:
+			return iterf()
+		return self._it(yieldf)
+	def _it(self, yieldf):
+		for val in self._val_query():
+			self._store(val)
+			yield yieldf(val)
+		self._loaded = True
+	def iterkeys(self):
+		return self._iter(self._dict.iterkeys, lambda(v): v.name)
+	def itervalues(self):
+		return self._iter(self._dict.itervalues, lambda(v): v.value)
+	def iteritems(self):
+		return self._iter(self._dict.iteritems, lambda(v): (v.name, v.value))
+
+	def has_key(self, k):
+		return k in self
+	def get(self, k, default=None):
+		try:
+			return self[k]
+		except KeyError:
+			return default
+	def setdefault(self, k, default=None):
+		if k not in self:
+			self[k] = default
+		return self[k]
+	def pop(self, k, *args, **kwargs):
+		v = self.get(k, *args, **kwargs)
+		del self[k]
+		return v
+	def popitem(self):
+		val = self._val_query().first()
+		if val is None:
+			return None
+		return val.name, val.value
+	def update(other=None, **kwargs):
+		if other is not None:
+			if hasattr(other, '__getitem__'):
+				for k in other:
+					self[k] = other[k]
+			else:
+				for pair in other:
+					self[pair[0]] = pair[1]
+		for k in kwargs:
+			self[k] = kwargs[k]
+
+
+	@staticmethod
+	def _get_id(request):
+		return request.cookies.get(COOKIE_NAME, None)
+
+	@staticmethod
+	def active(request):
+		sid = Session._get_id(request)
+		if sid is None:
+			return None
+		session = DBSession.query(Session).filter(Session.cookie_id==sid).first()
+		if session is not None:
+			if not slow_equals(session.source, request.client_addr):
+				session.invalidate()
+		return session.if_valid() if session else None
+
+
+class Flash(Base):
+	__tablename__ = 'flashes'
+	session_id = Column(Integer, ForeignKey(Session.id), primary_key=True)
+	queue = Column(String(30), primary_key=True)
+	num = Column(Integer, primary_key=True)
+	msg = Column(PickleType, nullable=False)
+
+	session = relationship(Session)
+
+	def __init__(self, session, queue, msg):
+		self.session = session
+		self.queue = queue
+		self.num = (DBSession.query(Flash).filter(Flash.session==session).
+				filter(Flash.queue==queue).count())
+		self.msg = msg
+
+
+
+
+class SessionValue(Base):
+	__tablename__ = 'session_values'
+	session_id = Column(Integer, ForeignKey(Session.id), primary_key=True)
+	name = Column(String(30), primary_key=True)
+	value = Column(PickleType(mutable=True), nullable=False)
+
+	session = relationship(Session)
+
+	def __init__(self, session, name, value):
+		self.session = session
+		self.name = name
+		self.value = value
+

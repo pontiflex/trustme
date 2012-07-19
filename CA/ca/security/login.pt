@@ -1,0 +1,134 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal">
+<head>
+  <title>Login - ca</title>
+  <meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+  <meta name="keywords" content="python web application" />
+  <meta name="description" content="pyramid web application" />
+  <link rel="shortcut icon"
+        href="${request.static_url('ca:static/favicon.ico')}" />
+  <link rel="stylesheet"
+        href="${request.static_url('ca:static/pylons.css')}"
+        type="text/css" media="screen" charset="utf-8" />
+
+  <script src="${puzzle_alg_loc}"></script>
+  <script type="text/javascript">
+	var hex = ['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'];
+	var revHex = new Array();
+	for (var i=0; i<hex.length; i++)
+		revHex[hex[i]] = i;
+
+	var chars = hex;
+	var revChars = new Array();
+	for (var i=0; i<chars.length; i++)
+		revChars[chars[i]] = i;
+
+	var block = 100;
+	var attempt = '';
+	var interval;
+
+	function nextString(s)
+	{
+		var last = chars[chars.length-1];
+		var i;
+		for (i=0; i<s.length; i++)
+			if (s.charAt(s.length-i-1) != last)
+				break;
+		if (i == s.length)
+			return Array(s.length+2).join(chars[0]);
+		tail = chars[revChars[s.charAt(s.length-i-1)]+1];
+		if (i > 0)
+			tail += Array(i+1).join(chars[0]);
+		return s.substring(0, s.length-i-1) + tail;
+	}
+
+	function puzzle()
+	{
+		document.getElementById("form.submit").style.display = "none";
+		document.getElementById("form.working").style.display = "block";
+		document.getElementById("login_form").onsubmit = puzzle_logic;
+		interval = setInterval('puzzle_logic()', 0);
+		return false;
+	}
+
+	function puzzle_logic()
+	{
+		var url = window.location.href;
+		url = ${puzzle_alg % 'url'};
+		var login = document.getElementById("login").value;
+		login = ${puzzle_alg % 'login'};
+		var password = document.getElementById("password").value;
+		password = ${puzzle_alg % 'password'};
+		var pref = url + login + password;
+
+		s = attempt;
+		for (var i=0; i<block; i++,s=nextString(s)) {
+			sHash = ${puzzle_alg % 's'};
+			puzzle = ${puzzle_alg % 'pref + sHash'};
+			for (var j=0;j<${puzzle_diff};j++) {
+				bits = revHex[puzzle.charAt(puzzle.length-Math.floor(j/4)-1)];
+				if (0 != ((bits>>>(j%4)) & 1)) {
+					puzzle = '';
+					break;
+				}
+			}
+			if (puzzle != '') {
+				clearInterval(interval);
+				document.getElementById("solution").value = s;
+				document.getElementById("login_form").submit();
+				break;
+			}
+		}
+		attempt = nextString(s);
+	}
+  </script>
+  <!--[if lte IE 6]>
+  <link rel="stylesheet"
+        href="${request.static_url('ca:static/ie6.css')}"
+        type="text/css" media="screen" charset="utf-8" />
+  <![endif]-->
+</head>
+<body>
+  <div id="wrap">
+    <div id="top-small">
+      <div class="top-small align-center">
+        <div>
+          <img width="220" height="50" alt="pyramid"
+        src="${request.static_url('ca:static/pyramid-small.png')}" />
+        </div>
+      </div>
+    </div>
+    <div id="middle">
+      <div class="middle align-right">
+        <div id="left" class="app-welcome align-left">
+          <b>Login</b><br/>
+          <span tal:replace="message"/>
+        </div>
+        <div id="right" class="app-welcome align-right"></div>
+      </div>
+    </div>
+    <div id="bottom">
+      <div class="bottom">
+        <form id="login_form" action="${url}" method="post">
+          <input type="hidden" name="came_from" value="${came_from}"/>
+          <input type="text" id = "login" name="login" value="${login}"/><br/>
+          <input type="password" id="password" name="password"
+                 value="${password}"/><br/>
+		  <input type="hidden" id="solution" name="solution"/>
+		  <input type="hidden" name="form.submitted" value="Log In"/>
+          <input type="submit" id="form.submit"/>
+		  <div id="form.working" style="padding-left:10px; display:none;">
+			<img width="30" height="30" alt="working"
+				 src="${request.static_url('ca:static/working.gif')}" />
+		  </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script type="text/javascript">
+	document.getElementById("login_form").onsubmit = puzzle;
+  </script>
+</body>
+</html>
