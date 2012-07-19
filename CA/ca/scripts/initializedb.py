@@ -3,7 +3,7 @@ from ..models import DBSession, Base
 from ..security.user import User
 from ..security.capability import AccessCapability
 from ..security import access, action, constraint
-from ..security.fields import intfield, strfield
+from ..security.fields import int_, str_
 
 from sqlalchemy import engine_from_config
 

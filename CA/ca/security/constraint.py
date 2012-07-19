@@ -31,23 +31,29 @@ class Constraint(Base):
 	clause = relationship(lambda:Constraint, remote_side=[id],
 				backref=backref('children', order_by=id))
 
-	def __init__(self, parent, field, predicate, negated=False, args=[], kwargs={}): 
-		if isinstance(parent, Constraint):
-			self.clause = parent
-		else:
-			self.capability = parent
+	def __new__(cls, *args, **kwargs):
+		if cls is Constraint:
+			raise TypeError('Constraint cannot be directly instantiatied')
+		return super(Constraint, cls).__new__(cls, *args, **kwargs)
+
+	def __init__(self, field, predicate, negated=False, args=[], kwargs={}, clause=None):
 		self.field = field
 		self.predicate = predicate
 		self.negated = negated
 		self.args = args
 		self.kwargs = kwargs
+		self.clause = clause
 
 	def condition(self, access):
 		field = access if self.field is None else self.field
 		conds = [get_predicate(field, self.predicate)(*self.args, **self.kwargs)]
-		conds.extend((child._condition(access) for child in self.children))
+		conds.extend((child.condition(access) for child in self.children))
 		cond = and_(*conds) if self.conjunctive else or_(*conds)
-		return not_(cond) if self.negated else cond
+		if self.negated: cond = not_(cond)
+		if self.capability is not None:
+			pCons = self.capability.constraint
+			if pCons is not None: cond = and_(cond, pCons.condition(access))
+		return cond
 
 	def query(self, access):
 		return DBSession.query(Action).filter(self.condition(access))

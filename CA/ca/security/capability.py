@@ -37,6 +37,11 @@ class Capability(Base):
 	delegates = relationship(lambda:Capability, backref=backref('parent', remote_side=[id]))
 	user = relationship(User, backref=backref('capabilities'))
 
+	def __new__(cls, *args, **kwargs):
+		if cls is Capability:
+			raise TypeError('Capability cannot be directly instantiatied')
+		return super(Capability, cls).__new__(cls, *args, **kwargs)
+
 	def __init__(self, user, action_type=None, access_type=None, start_time=None, end_time=None, parent=None):
 		self.user = user
 		self.key = rand64(CAP_BYTES)
@@ -48,7 +53,6 @@ class Capability(Base):
 			self.action_type = action_type
 			self.access_type = access_type
 		else:
-			if parent.use != 'grant': raise ValueError()
 			if not parent.valid(): raise ValueError()
 			self.parent = parent
 			self.action_type = parent.action_type
@@ -106,18 +110,42 @@ class Capability(Base):
 	def valid(self):
 		self._valid = (self._valid and self._localvalid()
 					   and (self.parent is None or self.parent.valid()))
-		return self._valid	
+		return self._valid
+
+	def revoke(self, child):
+		if child not in self.delegates:
+			return False
+		child.revoked = True
+
+	def relinquish(self):
+		self.revoked = True
+		return self
+
+	def constrain(self, constraint):
+		if self.constraint is not None:
+			raise ValueError()
+		if constraint is not None and constraint.capability is not None:
+			raise ValueError()
+		self.constraint = constraint
+		return self
+		
 
 
 class AccessCapability(Capability):
 	__mapper_args__ = {'polymorphic_identity':'access'}
 
+	def auto(self, constraint=None, start_time=None, end_time=None):
+		return (FilterCapability(self.user, parent=self, start_time=start_time,
+														 end_time=end_time)
+				.constrain(constraint))
+
 class GrantCapability(Capability):
 	__mapper_args__ = {'polymorphic_identity':'grant'}
 
-	def grant(self, user, constraint=None, grant=False):
-		if grant: cap = GrantCapability(user, parent=self)
-		else	: cap = AccessCapability(user, parent=self)
+	def grant(self, user, constraint=None, start_time=None, end_time=None, grant=False):
+		Cap = GrantCapability if grant else AccessCapability
+		return (Cap(user, parent=self, start_time=start_time, end_time=end_time)
+				.constrain(constraint))
 
 class FilterCapability(Capability):
 	__mapper_args__ = {'polymorphic_identity':'filter'}
