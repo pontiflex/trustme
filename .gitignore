@@ -20,6 +20,8 @@ include
 lib
 local
 
+openssl_sandbox
+
 # Scripts
 *.sh
 

@@ -16,6 +16,11 @@ class Action(Base):
 	id = Column(Integer, Sequence('action_id_seq'), primary_key=True)
 	type = Column(String(30), nullable=False)
 
+	def __new__(cls, *args, **kwargs):
+		if cls is Action:
+			raise TypeError('Action cannot be directly instantiatied')
+		return super(Action, cls).__new__(cls, *args, **kwargs)
+
 class Field(Base):
 	__tablename__ = 'fields'
 	__mapper_args__ = {'polymorphic_on':'type',  'with_polymorphic':'*'}
@@ -27,6 +32,11 @@ class Field(Base):
 
 	action = relationship(Action, backref=backref('fields', 
 					 collection_class=column_mapped_collection(name)))
+
+	def __new__(cls, *args, **kwargs):
+		if cls is Field:
+			raise TypeError('Field cannot be directly instantiatied')
+		return super(Field, cls).__new__(cls, *args, **kwargs)
 
 	def __init__(self, action, name):
 		self.action = action
