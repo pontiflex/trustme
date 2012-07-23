@@ -1,4 +1,4 @@
-from shorthand import TYPE, SEQ, SET, SEQOF, SETOF, CHOICE, ID
+from shorthand import TYPE, SEQ, SET, SEQOF, SETOF, CHOICE, ID, TUP
 
 from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
 
@@ -28,7 +28,7 @@ UTF8String ::= [UNIVERSAL 12] IMPLICIT OCTET STRING
       -- The content of this type conforms to RFC 3629."""
 
 DEFAULT_TAG = True
-MAX = 2147483647
+MAX = 2147483647 # FIXME: Is this right?
 
 def TAG(tagSet):
 	return tagSet.tagExplicitly if DEFAULT_TAG else tagSet.tagImplicitly
@@ -41,10 +41,6 @@ def DIRSTR(lower, upper):
 				  TYPE('utf8String', char.UTF8String, constraint=cons),
 				  TYPE('bmpString', char.BMPString, constraint=cons))
 
-def TUP(base, num):
-	ls = list(base)
-	ls.append(num)
-	return tuple(ls)
 	
 
 

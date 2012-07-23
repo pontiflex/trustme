@@ -41,17 +41,23 @@ def SET(*types):
 	return Set
 
 def SEQOF(type_, constraint=None):
+	if constraint is not None:
+		type_ = type_.subtype(subtypeSpec=type_.subtypeSpec + constraint)
+	else:
+		type_ = type_()
 	class Of(univ.SequenceOf):
-		componentType = type_()
+		componentType = type_
 	if constraint is not None:
 		Of.subtypeSpec += constraint
 	return Of
 
 def SETOF(type_, constraint=None):
-	class Of(univ.SetOf):
-		componentType = type_()
 	if constraint is not None:
-		Of.subtypeSpec += constraint
+		type_ = type_.subtype(subtypeSpec=type_.subtypeSpec + constraint)
+	else:
+		type_ = type_()
+	class Of(univ.SetOf):
+		componentType = type_
 	return Of
 
 def CHOICE(*types):
@@ -61,4 +67,9 @@ def CHOICE(*types):
 
 def ID(*nums):
 	return univ.ObjectIdentifier(tuple(nums))
+
+def TUP(base, num):
+	ls = list(base)
+	ls.append(num)
+	return tuple(ls)
 
