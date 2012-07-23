@@ -1,6 +1,6 @@
 from shorthand import TYPE, SEQ, SET, CHOICE
 
-from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
+from pyasn1.type import univ
 
 
 # FROM RFC 5754 (http://tools.ietf.org/html/rfc5754)

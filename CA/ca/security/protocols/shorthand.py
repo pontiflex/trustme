@@ -1,4 +1,4 @@
-from pyasn1 import tag, univ, namedtype
+from pyasn1.type import tag, univ, namedtype
 
 def TYPE(name, type, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext, optional=False, **kwargs):
 	tag = None

@@ -46,13 +46,9 @@ DEFAULT_TAG = True
 MAX = 2147483647
 
 
-# AttributeCertificateV1 ::= SEQUENCE {
-#   acInfo AttributeCertificateInfoV1,
-#   signatureAlgorithm AlgorithmIdentifier,
-#   signature BIT STRING }
-AttributeCertificateV1 = SEQ(TYPE('acInfo', AttributeCertificateInfoV1()),
-							 TYPE('signatureAlgorithm', AlgorithmIdentifier()),
-							 TYPE('signature', univ.BitString()))
+# AttCertVersionV1 ::= INTEGER { v1(0) }
+class AttCertVersionV1(univ.Integer):
+	namedValues = namedval.NamedValues('v1', 0)
 
 # AttributeCertificateInfoV1 ::= SEQUENCE {
 #   version AttCertVersionV1 DEFAULT v1,
@@ -70,7 +66,7 @@ AttributeCertificateV1 = SEQ(TYPE('acInfo', AttributeCertificateInfoV1()),
 #   extensions Extensions OPTIONAL }
 AttributeCertificateInfoV1 = SEQ(TYPE('version', AttCertVersionV1('v1')),
 								 TYPE('subject', CHOICE(TYPE('baseCertificateID', IssuerSerial(), DEFAULT_TAG),
-														TYPE('subjectName', GeneralNames(), DEFAULT_TAG, 1)),
+														TYPE('subjectName', GeneralNames(), DEFAULT_TAG, 1))),
 								 TYPE('issuer', GeneralNames()),
 								 TYPE('signature', AlgorithmIdentifier()),
 								 TYPE('serialNumber', CertificateSerialNumber()),
@@ -79,8 +75,12 @@ AttributeCertificateInfoV1 = SEQ(TYPE('version', AttCertVersionV1('v1')),
 								 TYPE('issuerUniqueID', UniqueIdentifier(), optional=True),
 								 TYPE('extensions', Extensions(), optional=True))
 
-# AttCertVersionV1 ::= INTEGER { v1(0) }
-class AttCertVersionV1(univ.Integer):
-	namedValues = namedval.NamedValues('v1', 0)
+# AttributeCertificateV1 ::= SEQUENCE {
+#   acInfo AttributeCertificateInfoV1,
+#   signatureAlgorithm AlgorithmIdentifier,
+#   signature BIT STRING }
+AttributeCertificateV1 = SEQ(TYPE('acInfo', AttributeCertificateInfoV1()),
+							 TYPE('signatureAlgorithm', AlgorithmIdentifier()),
+							 TYPE('signature', univ.BitString()))
 
 # END -- of AttributeCertificateVersion1

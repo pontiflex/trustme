@@ -1,4 +1,5 @@
 from shorthand import TYPE, SEQ, SET, CHOICE
+from rfc5652_attr_cert_v1 import AttributeCertificateV1
 
 from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
 
