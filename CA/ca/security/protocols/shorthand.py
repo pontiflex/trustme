@@ -22,7 +22,20 @@ def SET(*types):
 		componentType = namedtype.NamedTypes(*types)
 	return set_
 
+def SEQOF(type):
+	class of(univ.SequenceOf):
+		componentType = type
+	return of()
+
+def SETOF(type):
+	class of(univ.SetOf):
+		componentType = type
+	return of()
+
 def CHOICE(*types):
 	class choice(univ.Choice):
 		componentType = namedtype.NamedTypes(*types)
 	return choice
+
+def ID(*nums):
+	return univ.ObjectIdentifier(*nums)

@@ -48,7 +48,7 @@ MAX = 2147483647
 
 # AttCertVersionV1 ::= INTEGER { v1(0) }
 class AttCertVersionV1(univ.Integer):
-	namedValues = namedval.NamedValues('v1', 0)
+	namedValues = namedval.NamedValues(('v1', 0))
 
 # AttributeCertificateInfoV1 ::= SEQUENCE {
 #   version AttCertVersionV1 DEFAULT v1,
