@@ -1,41 +1,64 @@
 from pyasn1.type import tag, univ, namedtype
 
-def TYPE(name, type, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext, optional=False, **kwargs):
-	tag = None
+from inspect import isclass
+
+"""def TYPE(name, type, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext, optional=False, **kwargs):
+	tag_ = None
 	if explicit is not None:
 		form = tag.tagFormatConstructed if tagcons else tag.tagFormatSimple
-		tag = tag.Tag(tagclass, form, tagnum)
-		if explicit: kwargs['explicitTag'] = tag
-		else:		 kwargs['implicitTag'] = tag
+		tag_ = tag.Tag(tagclass, form, tagnum)
+		if explicit: kwargs['explicitTag'] = tag_
+		else:		 kwargs['implicitTag'] = tag_
 	if kwargs: type = type.subtype(**kwargs)
 	if optional:
 		return namedtype.OptionalNamedType(name, type)
-	return namedtype.NamedType(name, type)
+	return namedtype.NamedType(name, type)"""
+
+def TYPE(name, type_, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext,
+		 optional=False, default=None, constraint=None):
+	if not isclass(type_): type_ = type_.__class__
+	class Type(type_): pass
+	if explicit is not None:
+		form = tag.tagFormatConstructed if tagcons else tag.tagFormatSimple
+		tag_ = tag.Tag(tagclass, form, tagnum)
+		if explicit: Type.tagSet = Type.tagSet.tagExplicitly(tag_)
+		else:		 Type.tagSet = Type.tagSet.tagImplicitly(tag_)
+	if constraint is not None:
+		Type.subtypeSpec += constraint
+	T = Type() if default is None else Type(default)
+	if optional:
+		return namedtype.OptionalNamedType(name, Type)
+	return namedtype.NamedType(name, Type)
 
 def SEQ(*types):
-	class seq(univ.Sequence):
+	class Seq(univ.Sequence):
 		componentType = namedtype.NamedTypes(*types)
-	return seq
+	return Seq
 
 def SET(*types):
-	class set_(univ.Set):
+	class Set(univ.Set):
 		componentType = namedtype.NamedTypes(*types)
-	return set_
+	return Set
 
-def SEQOF(type):
-	class of(univ.SequenceOf):
-		componentType = type
-	return of()
+def SEQOF(type_, constraint=None):
+	class Of(univ.SequenceOf):
+		componentType = type_()
+	if constraint is not None:
+		Of.subtypeSpec += constraint
+	return Of
 
-def SETOF(type):
-	class of(univ.SetOf):
-		componentType = type
-	return of()
+def SETOF(type_, constraint=None):
+	class Of(univ.SetOf):
+		componentType = type_()
+	if constraint is not None:
+		Of.subtypeSpec += constraint
+	return Of
 
 def CHOICE(*types):
-	class choice(univ.Choice):
+	class Choice(univ.Choice):
 		componentType = namedtype.NamedTypes(*types)
-	return choice
+	return Choice
 
 def ID(*nums):
-	return univ.ObjectIdentifier(*nums)
+	return univ.ObjectIdentifier(tuple(nums))
+

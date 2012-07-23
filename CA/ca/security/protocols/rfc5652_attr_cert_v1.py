@@ -1,6 +1,6 @@
-from shorthand import TYPE, SEQ, SET, CHOICE
+from shorthand import TYPE, SEQ, SET, SEQOF, SETOF, CHOICE
 
-from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
+from pyasn1.type import univ, namedval
 
 
 # FROM RFC 5652 (http://tools.ietf.org/html/rfc5652)
@@ -41,9 +41,12 @@ from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
    -- Definition extracted from X.509-1997 [X.509-97], but
    -- different type names are used to avoid collisions."""
 
-# FIXME: Are these right?
+from rfc5280_explicit import ( AlgorithmIdentifier, Attribute, 
+							   CertificateSerialNumber, Extensions,
+							   UniqueIdentifier )
+
 DEFAULT_TAG = True
-MAX = 2147483647
+MAX = 2147483647 # FIXME: Is this right?
 
 
 # AttCertVersionV1 ::= INTEGER { v1(0) }
@@ -65,22 +68,22 @@ class AttCertVersionV1(univ.Integer):
 #   issuerUniqueID UniqueIdentifier OPTIONAL,
 #   extensions Extensions OPTIONAL }
 AttributeCertificateInfoV1 = SEQ(TYPE('version', AttCertVersionV1('v1')),
-								 TYPE('subject', CHOICE(TYPE('baseCertificateID', IssuerSerial(), DEFAULT_TAG),
-														TYPE('subjectName', GeneralNames(), DEFAULT_TAG, 1))),
-								 TYPE('issuer', GeneralNames()),
-								 TYPE('signature', AlgorithmIdentifier()),
-								 TYPE('serialNumber', CertificateSerialNumber()),
-								 TYPE('attCertValidityPeriod', AttCertValidityPeriod()),
-								 TYPE('attributes', univ.SequenceOf().subtype(componentType=Attribute())),
-								 TYPE('issuerUniqueID', UniqueIdentifier(), optional=True),
-								 TYPE('extensions', Extensions(), optional=True))
+								 TYPE('subject', CHOICE(TYPE('baseCertificateID', IssuerSerial, DEFAULT_TAG),
+														TYPE('subjectName', GeneralNames, DEFAULT_TAG, 1))),
+								 TYPE('issuer', GeneralNames),
+								 TYPE('signature', AlgorithmIdentifier),
+								 TYPE('serialNumber', CertificateSerialNumber),
+								 TYPE('attCertValidityPeriod', AttCertValidityPeriod),
+								 TYPE('attributes', SEQOF(Attribute)),
+								 TYPE('issuerUniqueID', UniqueIdentifier, optional=True),
+								 TYPE('extensions', Extensions, optional=True))
 
 # AttributeCertificateV1 ::= SEQUENCE {
 #   acInfo AttributeCertificateInfoV1,
 #   signatureAlgorithm AlgorithmIdentifier,
 #   signature BIT STRING }
-AttributeCertificateV1 = SEQ(TYPE('acInfo', AttributeCertificateInfoV1()),
-							 TYPE('signatureAlgorithm', AlgorithmIdentifier()),
-							 TYPE('signature', univ.BitString()))
+AttributeCertificateV1 = SEQ(TYPE('acInfo', AttributeCertificateInfoV1),
+							 TYPE('signatureAlgorithm', AlgorithmIdentifier),
+							 TYPE('signature', univ.BitString))
 
 # END -- of AttributeCertificateVersion1
