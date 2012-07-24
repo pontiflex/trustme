@@ -5,7 +5,7 @@ from inspect import isclass
 MAX = 2147483647 # FIXME: Is this right?
 
 def TYPE(name, type_, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext,
-		 optional=False, default=None, constraint=None):
+		 optional=False, default=None, constraint=None, named=None):
 	if not isclass(type_): type_ = type_.__class__
 	class Type(type_): pass
 	if explicit is not None:
@@ -15,6 +15,8 @@ def TYPE(name, type_, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagCla
 		else:		 Type.tagSet = Type.tagSet.tagImplicitly(tag_)
 	if constraint is not None:
 		Type.subtypeSpec += constraint
+	if named is not None:
+		Type.namedValues = named
 	T = Type() if default is None else Type(default)
 	if optional:
 		return namedtype.OptionalNamedType(name, Type)
