@@ -1,4 +1,4 @@
-from shorthand import TYPE, SEQ, SET, SEQOF, SETOF, CHOICE
+from shorthand import MAX, TYPE, SEQ, SET, SEQOF, SETOF, CHOICE
 
 from pyasn1.type import univ, namedval
 
@@ -45,8 +45,14 @@ from rfc5280_explicit import ( AlgorithmIdentifier, Attribute,
 							   CertificateSerialNumber, Extensions,
 							   UniqueIdentifier )
 
+from rfc5280_implicit import GeneralNames
+
+# Resolve circular import (use RFC5755, which obsoletes RFC3281)
+import rfc5755_attr_cert_2008
+AttCertValidityPeriod = rfc5755_attr_cert_2008.AttCertValidityPeriod
+IssuerSerial = rfc5755_attr_cert_2008.IssuerSerial
+
 DEFAULT_TAG = True
-MAX = 2147483647 # FIXME: Is this right?
 
 
 # AttCertVersionV1 ::= INTEGER { v1(0) }

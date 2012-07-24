@@ -1,18 +1,8 @@
-from pyasn1.type import tag, univ, namedtype
+from pyasn1.type import tag, univ, namedtype, namedval, constraint
 
 from inspect import isclass
 
-"""def TYPE(name, type, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext, optional=False, **kwargs):
-	tag_ = None
-	if explicit is not None:
-		form = tag.tagFormatConstructed if tagcons else tag.tagFormatSimple
-		tag_ = tag.Tag(tagclass, form, tagnum)
-		if explicit: kwargs['explicitTag'] = tag_
-		else:		 kwargs['implicitTag'] = tag_
-	if kwargs: type = type.subtype(**kwargs)
-	if optional:
-		return namedtype.OptionalNamedType(name, type)
-	return namedtype.NamedType(name, type)"""
+MAX = 2147483647 # FIXME: Is this right?
 
 def TYPE(name, type_, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext,
 		 optional=False, default=None, constraint=None):
@@ -39,6 +29,12 @@ def SET(*types):
 	class Set(univ.Set):
 		componentType = namedtype.NamedTypes(*types)
 	return Set
+
+def ENUM(*values):
+	class Enum(univ.Enumerated):
+		namedValues = namedval.NamedValues(*values)
+		subtypeSpec = univ.Enumerated.subtypeSpec + constraint.SingleValueConstraint(*(v[1] for v in values))
+	return Enum		
 
 def SEQOF(type_, constraint=None):
 	class In(type_): pass

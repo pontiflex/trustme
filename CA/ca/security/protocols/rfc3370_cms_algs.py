@@ -1,4 +1,4 @@
-from shorthand import TYPE, SEQ, SET, CHOICE
+from shorthand import MAX, TYPE, SEQ, SET, CHOICE
 
 from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
 
@@ -27,7 +27,6 @@ IMPORTS
 
 # FIXME: Are these right?
 DEFAULT_TAG = False
-MAX = 2147483647
 
 
 # -- Algorithm Identifiers

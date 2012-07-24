@@ -1,4 +1,4 @@
-from shorthand import TYPE, SEQ, SET, SEQOF, SETOF, CHOICE, ID, TUP
+from shorthand import MAX, TYPE, SEQ, SET, SEQOF, SETOF, CHOICE, ID, TUP
 
 from pyasn1.type import tag, namedtype, namedval, univ, constraint, char, useful
 
@@ -27,7 +27,6 @@ from rfc5280_explicit import ( id_pe, id_kp, id_qt_unotice, id_qt_cps,
 							   CertificateSerialNumber, Attribute, DirectoryString )
 
 DEFAULT_TAG = True
-MAX = 2147483647 # FIXME: Is this right?
 
 
 # -- ISO arc for standard certificate and CRL extensions
