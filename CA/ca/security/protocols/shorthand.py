@@ -62,8 +62,8 @@ def CHOICE(*types):
 def ID(*nums):
 	return univ.ObjectIdentifier(tuple(nums))
 
-def TUP(base, num):
+def TUP(base, *nums):
 	ls = list(base)
-	ls.append(num)
+	ls.extend(nums)
 	return tuple(ls)
 
