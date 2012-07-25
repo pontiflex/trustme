@@ -73,7 +73,7 @@ class AttCertVersionV1(univ.Integer):
 #   attributes SEQUENCE OF Attribute,
 #   issuerUniqueID UniqueIdentifier OPTIONAL,
 #   extensions Extensions OPTIONAL }
-AttributeCertificateInfoV1 = SEQ(TYPE('version', AttCertVersionV1('v1')),
+AttributeCertificateInfoV1 = SEQ(TYPE('version', AttCertVersionV1, default='v1'),
 								 TYPE('subject', CHOICE(TYPE('baseCertificateID', IssuerSerial, DEFAULT_TAG),
 														TYPE('subjectName', GeneralNames, DEFAULT_TAG, 1))),
 								 TYPE('issuer', GeneralNames),

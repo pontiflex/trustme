@@ -6,21 +6,25 @@ MAX = 2147483647 # FIXME: Is this right?
 
 def TYPE(name, type_, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagClassContext,
 		 optional=False, default=None, constraint=None, named=None):
-	if not isclass(type_): type_ = type_.__class__
-	class Type(type_): pass
+	type_ = type_() if default is None else type_(default)
+	subArgs = {}
 	if explicit is not None:
 		form = tag.tagFormatConstructed if tagcons else tag.tagFormatSimple
 		tag_ = tag.Tag(tagclass, form, tagnum)
-		if explicit: Type.tagSet = Type.tagSet.tagExplicitly(tag_)
-		else:		 Type.tagSet = Type.tagSet.tagImplicitly(tag_)
+		if explicit: subArgs['explicitTag'] = tag_
+		else:		 subArgs['implicitTag'] = tag_
 	if constraint is not None:
-		Type.subtypeSpec += constraint
+		subArgs['subtypeSpec'] = constraint
 	if named is not None:
-		Type.namedValues = named
-	T = Type() if default is None else Type(default)
-	if optional:
-		return namedtype.OptionalNamedType(name, Type)
-	return namedtype.NamedType(name, Type)
+		subArgs['namedValues'] = named
+
+	if subArgs:
+		type_ = type_.subtype(**subArgs)
+	if default is not None:
+		return namedtype.DefaultedNamedType(name, type_)
+	elif optional:
+		return namedtype.OptionalNamedType(name, type_)
+	return namedtype.NamedType(name, type_)
 
 def SEQ(*types):
 	class Seq(univ.Sequence):
