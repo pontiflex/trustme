@@ -36,32 +36,32 @@ def SET(*types):
 		componentType = namedtype.NamedTypes(*types)
 	return Set
 
-def ENUM(*values):
-	class Enum(univ.Enumerated):
-		namedValues = namedval.NamedValues(*values)
-		subtypeSpec = univ.Enumerated.subtypeSpec + constraint.SingleValueConstraint(*(v[1] for v in values))
-	return Enum		
-
-def SEQOF(type_, constraint=None):
-	class In(type_): pass
-	if constraint is not None:
-		In.subtypeSpec += constraint
-	class Of(univ.SequenceOf):
-		componentType = In
-	return Of
-
-def SETOF(type_, constraint=None):
-	class In(type_): pass
-	if constraint is not None:
-		In.subtypeSpec += constraint
-	class Of(univ.SetOf):
-		componentType = In
-	return Of
-
 def CHOICE(*types):
 	class Choice(univ.Choice):
 		componentType = namedtype.NamedTypes(*types)
 	return Choice
+
+def ENUM(*values):
+	class Enum(univ.Enumerated):
+		namedValues = namedval.NamedValues(*values)
+		subtypeSpec = univ.Enumerated.subtypeSpec + constraint.SingleValueConstraint(*(v[1] for v in values))
+	return Enum
+
+def SEQOF(type_, constraint=None):
+	type_ = type_()
+	if constraint is not None:
+		type_ = type_.subtype(subtypeSpec=constraint)
+	class Of(univ.SequenceOf):
+		componentType = type_
+	return Of
+
+def SETOF(type_, constraint=None):
+	type_ = type_()
+	if constraint is not None:
+		type_ = type_.subtype(subtypeSpec=constraint)
+	class Of(univ.SetOf):
+		componentType = type_
+	return Of
 
 def ID(*nums):
 	return univ.ObjectIdentifier(tuple(nums))
