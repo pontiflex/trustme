@@ -1,10 +1,11 @@
-from parser import Parser
+from openssl import invoke
 
 from base64 import b64decode
 import re
-import subprocess
 
-asn1_line = re.compile('^\s*(?P<index>\d+):\s*' +
+CMD = 'asn1parse'
+RAW = ['BIT STRING', 'OCTET STRING']
+ASN1_LINE = re.compile('^\s*(?P<index>\d+):\s*' +
 							'd=\s*(?P<depth>\d+)\s+' +
 							'hl=\s*(?P<header_length>\d+)\s+' +
 							'l=\s*(?P<body_length>\d+)\s+' + 
@@ -13,27 +14,43 @@ asn1_line = re.compile('^\s*(?P<index>\d+):\s*' +
 							'(?:(?:\\[HEX DUMP\\])?:(?P<value>.+))?$',
 					   re.U)
 
-class ASN1Structure(Parser):
-	def __init__(self, *channels):
-		super(ASN1Structure, self).__init__('asn1', *channels)
+class ASN1Struct(object):
+	def __init__(self, path, *args, **kwargs):
+		code, data = invoke(CMD, path, *args, **kwargs)
+		self.struct = None
+		if data is not None:
+			matches = [ASN1_LINE.match(line).groupdict() for line in data]
+			self.struct = self.__parse(matches)[0]
+			data.close()
 
-	def _parse(self, asn1, **kwargs):
-		parsed = [asn1_line.match(line).groupdict() for line in asn1[0]]
-		parsed = self.__parse(parsed)[0]
-		self.__print(parsed)
+	def __repr__(self):
+		pretty = 'Open' if self.struct is None else '\n%s' % self.__pretty(self.struct)
+		return self._repr(pretty)
+
+	def _repr(self, pretty):
+		return '<%s at %s: %s>' % (self.__class__.__name__, hex(id(self)), pretty)
 		
-	def __print(self, tree, depth=0):
+	def __pretty(self, tree, depth=0):
 		if isinstance(tree, list):
-			print '    ' * depth, ':'
+			ret = '    ' * (depth+1) + ':' + '\n'
 			for child in tree:
-				self.__print(child, depth+1)
+				ret += self.__pretty(child, depth+1)
+			return ret
+		elif tree[2]:
+			return '    ' * (depth+1) + str(tree[0]) + ' @ ' + str(tree[1]) + '\n'
 		else:
-			print '    ' * depth, tree[0], tree[1]
+			return '    ' * (depth+1) + str(tree[0]) + ' ' + str(tree[1]) + '\n'
 
 	def __parse(self, lines, start=0, depth=0):
 		line = lines[start]
 		if line['class'] == 'prim':
-			return (line['type'], line['value']), start+1 
+			raw = False
+			val = line['value']
+			if val is None and line['type'] in RAW:
+				raw = True
+				val = (int(line['index']), int(line['header_length']),
+					   int(line['body_length']))
+			return (line['type'], val, raw), start+1 
 		
 		i, value = start+1, []
 		while i < len(lines):
@@ -50,10 +67,7 @@ class ASN1Structure(Parser):
 
 
 if __name__ == '__main__':
-	test = ASN1Structure()
-
-	parseArgs = ('/usr/bin/openssl', 'asn1parse', '-i', '-in', 'priv.key')
-	subprocess.call(parseArgs, stdout=test.asn1(True), stderr=test.asn1(False))
-
-	test.close()
+	import sys
+	test = ASN1Struct(sys.argv[1])
+	print test
 
