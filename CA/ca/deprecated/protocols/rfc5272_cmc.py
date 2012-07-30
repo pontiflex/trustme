@@ -146,6 +146,28 @@ TaggedAttribute = SEQ(TYPE('bodyPartId', BodyPartID),
 #   signatureAlgorithm        AlgorithmIdentifier,
 #   signature                 BIT STRING
 # }
+class _SubjectPublicKeyInfo(univ.Sequence):
+	componentType = namedtype.NamedTypes(
+		namedtype.NamedType('algorithm', AlgorithmIdentifier()),
+		namedtype.NamedType('subjectPublicKey', univ.BitString())
+	)
+class _Attributes(univ.SetOf):
+	componentType = Attribute()
+	tagSet = univ.SetOf.tagSet.tagImplicitly(tag.Tag(tag.tagClassContext, tag.tagFormatConstructed, 0))
+class _CertificationRequestInfo(univ.Sequence):
+	componentType = namedtype.NamedTypes(
+		namedtype.NamedType('version', univ.Integer()),
+		namedtype.NamedType('subject', Name()),
+		namedtype.NamedType('subjectPublicKeyInfo', _SubjectPublicKeyInfo()),
+		namedtype.NamedType('attributes', _Attributes())
+	)
+class _CertificationRequest(univ.Sequence):
+	componentType = namedtype.NamedTypes(
+		namedtype.NamedType('certificationRequestInfo', _CertificationRequestInfo()),
+		namedtype.NamedType('signatureAlgorithm', AlgorithmIdentifier()),
+		namedtype.NamedType('signature', univ.BitString())
+	)
+	
 CertificationRequest = SEQ(TYPE('certificationRequestInfo', 
 								SEQ(TYPE('version', univ.Integer),
 									TYPE('subject', Name),

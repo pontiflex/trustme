@@ -20,6 +20,9 @@ def TYPE(name, type_, explicit=None, tagnum=0, tagcons=True, tagclass=tag.tagCla
 
 	if subArgs:
 		type_ = type_.subtype(**subArgs)
+	if name is None:
+		return type_
+
 	if default is not None:
 		return namedtype.DefaultedNamedType(name, type_)
 	elif optional:
@@ -51,17 +54,17 @@ def SEQOF(type_, constraint=None):
 	type_ = type_()
 	if constraint is not None:
 		type_ = type_.subtype(subtypeSpec=constraint)
-	class Of(univ.SequenceOf):
+	class SeqOf(univ.SequenceOf):
 		componentType = type_
-	return Of
+	return SeqOf
 
 def SETOF(type_, constraint=None):
 	type_ = type_()
 	if constraint is not None:
 		type_ = type_.subtype(subtypeSpec=constraint)
-	class Of(univ.SetOf):
+	class SetOf(univ.SetOf):
 		componentType = type_
-	return Of
+	return SetOf
 
 def ID(*nums):
 	return univ.ObjectIdentifier(tuple(nums))
