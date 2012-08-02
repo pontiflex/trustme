@@ -7,6 +7,7 @@ from ..models import Base, DBSession
 
 from pyramid.httpexceptions import HTTPFound, HTTPUnauthorized
 
+from sqlalchemy import or_, not_
 from sqlalchemy import Column, Sequence, ForeignKey
 from sqlalchemy import String, Integer, Enum, Boolean, PickleType
 from sqlalchemy.orm import relationship, backref, reconstructor
@@ -92,9 +93,9 @@ class Capability(Base):
 		if t is None: t = time() // 1
 		return (DBSession.query(FilterCapability)
 						 .filter(not_(Capability.revoked))
-						 .filter( or_(Capability.start_time is None,
+						 .filter( or_(Capability.start_time == None,
 									  Capability.start_time <= t))
-						 .filter( or_(Capability.end_time is None,
+						 .filter( or_(Capability.end_time == None,
 									  Capability.end_time >= t)))	
 
 	def _localvalid(self):

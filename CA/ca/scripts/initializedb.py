@@ -1,9 +1,10 @@
 from ..models import DBSession, Base
 
 from ..security.user import User
-from ..security.capability import AccessCapability
+from ..security.capability import AccessCapability, FilterCapability
 from ..security import access, action, constraint
-from ..security.fields import int_, str_
+from ..security.fields import *
+from ..security.actions import *
 
 from sqlalchemy import engine_from_config
 
@@ -34,3 +35,9 @@ def main(argv=sys.argv):
 		DBSession.add(user)
 		DBSession.add(AccessCapability(user, 'foo', 'request'))
 		DBSession.add(AccessCapability(user, 'foo', 'accept'))
+
+		accept = FilterCapability(user, 'certify', 'accept')
+		approve = FilterCapability(user, 'certify', 'approve')
+		DBSession.add(accept)
+		DBSession.add(approve)
+

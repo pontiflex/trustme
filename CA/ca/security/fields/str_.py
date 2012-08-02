@@ -1,19 +1,20 @@
-from ..action import Action, FieldType
+from ..action import Action, Field
 from ..predicate import predicate
 
-from sqlalchemy import Column, String
+from sqlalchemy import Column, ForeignKey, Integer, String
 
 
 LENGTH = 100
 
 
-class StrField(FieldType):
+class StrField(Field):
 	__tablename__ = 'strfields'
 	__mapper_args__ = {'polymorphic_identity':'str'}
+	id = Column(Integer, ForeignKey(Field.id), primary_key=True)
 	value = Column(String(LENGTH), nullable=False)
 
 	def __init__(self, action, name, value):
-		super().__init__(action, name)
+		super(StrField, self).__init__(action, name)
 		self.value = value
 
 	@predicate

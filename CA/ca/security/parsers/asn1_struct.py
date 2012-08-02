@@ -1,9 +1,8 @@
-from openssl import invoke
+from openssl import invoke, OpenSSLError
 
 from base64 import b64decode
 import re
 
-CMD = 'asn1parse'
 RAW = ['BIT STRING', 'OCTET STRING']
 ASN1_LINE = re.compile('^\s*(?P<index>\d+):\s*' +
 							'd=\s*(?P<depth>\d+)\s+' +
@@ -16,18 +15,35 @@ ASN1_LINE = re.compile('^\s*(?P<index>\d+):\s*' +
 
 class ASN1Struct(object):
 	def __init__(self, path, *args, **kwargs):
-		code, data = invoke(CMD, path, *args, **kwargs)
+		self.valid = None
+		code, data, err = self._init_invoke('asn1parse', path, *args, **kwargs)
 		self.struct = None
-		if data is not None:
+		if self.valid:
 			matches = [ASN1_LINE.match(line).groupdict() for line in data]
 			self.struct = self.__parse(matches)[0]
-			data.close()
+		else:
+			err.close()
+		data.close()
+
+	def _init_invoke(self, *args, **kwargs):
+		valid = self.valid if self.valid is not None else True
+		try:
+			out, err = invoke(*args, **kwargs)
+			code = 0
+			self.valid = valid
+		except OpenSSLError as e:
+			code, out, err = e.code, e.out, e.err
+			print '=' * 100
+			print err.read()
+			err.seek(0)
+			self.valid = False
+		return code, out, err
 
 	def __repr__(self):
-		pretty = 'Open' if self.struct is None else '\n%s' % self.__pretty(self.struct)
-		return self._repr(pretty)
+		return self._repr(lambda:'\n%s' % self.__pretty(self.struct))
 
 	def _repr(self, pretty):
+		pretty = pretty() if self.valid else 'Invalid'
 		return '<%s at %s: %s>' % (self.__class__.__name__, hex(id(self)), pretty)
 		
 	def __pretty(self, tree, depth=0):

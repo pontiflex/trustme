@@ -1,18 +1,19 @@
-from ..action import Action, FieldType
+from ..action import Action, Field
 from ..predicate import predicate
 
-from sqlalchemy import Column, Integer
+from sqlalchemy import Column, ForeignKey, Integer
 
 import operator
 
 
-class IntField(FieldType):
+class IntField(Field):
 	__tablename__ = 'intfields'
 	__mapper_args__ = {'polymorphic_identity':'int'}
+	id = Column(Integer, ForeignKey(Field.id), primary_key=True)
 	value = Column(Integer, nullable=False)
 
 	def __init__(self, action, name, value):
-		super().__init__(action, name)
+		super(IntField, self).__init__(action, name)
 		self.value = value
 
 	@classmethod

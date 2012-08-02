@@ -1,19 +1,17 @@
 from asn1_struct import ASN1Struct
-from openssl import invoke
 from structures import Name, Attributes, Raw
-
-CMD = 'req'
 
 
 class PKCS10Request(ASN1Struct):
 	def __init__(self, path, *args, **kwargs):
 		super(PKCS10Request, self).__init__(path, *args, **kwargs)
-		code, data = invoke(CMD, path, 'verify', *args, **kwargs)
-		if data is None:
-			self.valid = False
+		inform = kwargs.get('inform', 'pem')
+		code, data, err = self._init_invoke('req', path, 'verify', inform=inform)
+		data.close()
+		if not self.valid:
+			err.close()
 			return
-		self.valid = True
-
+	
 		info = self.struct[0]
 		self.version = int(info[0][1])
 		self.name = Name(info[1])
@@ -28,8 +26,7 @@ class PKCS10Request(ASN1Struct):
 		
 
 	def __repr__(self):
-		pretty = '\n%s' % self.__pretty() if self.valid else 'Invalid'
-		return self._repr(pretty)
+		return self._repr(lambda:'\n%s' % self.__pretty())
 
 	def __pretty(self):
 		ret  = '    Version: %i\n' % self.version

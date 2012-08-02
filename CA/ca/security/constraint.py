@@ -50,9 +50,6 @@ class Constraint(Base):
 		conds.extend((child.condition(access) for child in self.children))
 		cond = and_(*conds) if self.conjunctive else or_(*conds)
 		if self.negated: cond = not_(cond)
-		if self.capability is not None:
-			pCons = self.capability.constraint
-			if pCons is not None: cond = and_(cond, pCons.condition(access))
 		return cond
 
 	def query(self, access):

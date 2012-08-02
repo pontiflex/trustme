@@ -4,45 +4,30 @@ from base64 import b64decode
 STRIP_LINE = re.compile('^\\-\\-\\-\\-\\-.+\\-\\-\\-\\-\\-$', re.M)
 
 
-class Name(object):
+class Name(dict):
 	def __init__(self, info):
-		self.struct = {}
+		dict.__init__(self)
 		for subname in info:
 			for elmt in subname:
-				self.struct[elmt[0][1]] = elmt[1][1]
+				self[elmt[0][1]] = elmt[1][1]
 
-	def __repr__(self):	return repr(self.struct)
-	def __getattr__(self, name):
-		try:
-			return self.struct[name]
-		except KeyError:
-			raise AttributeError()
-
-class Attributes(object):
+class Attributes(dict):
 	def __init__(self, info):
-		self.struct = {}
+		dict.__init__(self)
 		for attr in info:
 			vals = []
 			for val in attr[1]:
 				vals.append(val[1])
-			self.struct[attr[0][1]] = vals
+			self[attr[0][1]] = vals
 
-	def __repr__(self): return repr(self.struct)
-	def __getattr__(self, name):
-		try:
-			return self.struct[name]
-		except KeyError:
-			raise AttributeError()
-
-class Raw(object):
-	def __init__(self, path, loc, *args, **kwargs):
+class Raw(str):
+	def __new__(cls, path, loc, *args, **kwargs):
 		with open(path, 'r') as f:
-			raw = ''.join(STRIP_LINE.sub('', f.read()).strip('\n').split('\n'))
+			raw = ''.join(STRIP_LINE.sub('', f.read()).strip('\n').splitlines())
 			if kwargs.get('inform', 'pem') == 'pem':
 				raw = b64decode(raw)
 			start = loc[0] + loc[1]
 			end = start + loc[2]
-			self.struct = raw[start:end]
+			return str.__new__(cls, raw[start:end].encode('hex').upper())
 
-	def __repr__(self): return self.struct.encode('hex').upper()
 
