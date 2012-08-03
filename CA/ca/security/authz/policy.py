@@ -1,5 +1,5 @@
-from capability import Capability
-from user import User
+from ca.security.authz.capability import Capability
+from ca.security.authn.user import User
 
 from pyramid.security import Everyone, Authenticated
 from pyramid.view import view_config

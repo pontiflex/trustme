@@ -1,4 +1,4 @@
-from ..models import Base, DBSession
+from ca.models import Base, DBSession
 
 
 __predicates__ = set()

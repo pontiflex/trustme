@@ -1,5 +1,5 @@
-from ..action import Action, Field
-from ..predicate import predicate
+from ca.security.authz.action import Action, Field
+from ca.security.authz.predicate import predicate
 
 from sqlalchemy import Column, ForeignKey, Integer
 

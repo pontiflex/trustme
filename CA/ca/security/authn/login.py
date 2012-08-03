@@ -1,10 +1,9 @@
-from algorithms import sha256
-from user import User
+from ca.security.algorithms import sha256
+from ca.security.authn.user import User
 
 from pyramid.security import remember, forget
 
 from pyramid.httpexceptions import HTTPFound
-from pyramid.response import Response
 from pyramid.view import view_config
 
 
@@ -32,7 +31,7 @@ def verify_puzzle(url, login, password, solution):
 
 
 
-@view_config(route_name='login', renderer='ca:security/login.pt')
+@view_config(route_name='login', renderer='ca:templates/security/login.pt')
 def login(request):
 	login_url = request.route_url('login')
 	referrer = request.referrer

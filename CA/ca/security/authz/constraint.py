@@ -1,9 +1,9 @@
-from access import Access
-from action import Action, Field
-from capability import Capability
-from predicate import get_predicate
+from ca.security.authz.access import Access
+from ca.security.authz.action import Action, Field
+from ca.security.authz.capability import Capability
+from ca.security.authz.predicate import get_predicate
 
-from ..models import Base, DBSession
+from ca.models import Base, DBSession
 
 from sqlalchemy import and_, or_, not_
 from sqlalchemy import Column, ForeignKey, Sequence

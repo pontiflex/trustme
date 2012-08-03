@@ -1,0 +1,36 @@
+<!--
+Parameters:
+	name_length: Maximum username length
+	mail_length: Maximum email length
+	message: Failure message from last submission
+	username: Last contents of username input
+	email: Last contents of email input
+	pass1: Last contents of pass1 input
+	pass2: Last contents of pass2 input
+-->
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+			xmlns:tal="http://xml.zope.org/namespaces/tal">
+
+<head>
+	<title>Setup - TrustMe</title>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+	<link rel="shortcut icon"
+				href="${request.static_url('ca:static/favicon.ico')}" />
+</head>
+
+
+<body>
+	Create Administrator Account<br/><br/>
+	<form method="POST">
+		Username:<input type="text" name="username" maxlength="${name_length}" size="${name_length}" value="${username}" /><br/>
+		Email:<input type="text" name="email" maxlength="${mail_length}" size="${mail_length}" value="${email}" /><br/>
+		Password:<input type="password" name="pass1" value="${pass1}" /><br/>
+		Confirm Password:<input type="password" name="pass2" value="${pass2}" /><br/>
+		<input type="hidden" name="form.submitted" value="Setup Admin" />
+		<input type="submit" value="Finish" />
+	</form><br/>
+	${message}
+</body>
+
+</html>

@@ -1,9 +1,9 @@
 from ca.security.algorithms import size64, rand64
-from ca.security.access import Access
-from ca.security.action import Action
+from ca.security.authz.access import Access
+from ca.security.authz.action import Action
 
-from ca.security.fields.int_ import IntField
-from ca.security.fields.str_ import StrField
+from ca.security.authz.fields.int_ import IntField
+from ca.security.authz.fields.str_ import StrField
 
 from ca.security.parsers.openssl import RawInput
 from ca.security.parsers.pkcs10_req import PKCS10Request

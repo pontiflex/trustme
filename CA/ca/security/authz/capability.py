@@ -1,9 +1,9 @@
-from algorithms import default_hash as h, default_mac as mac
-from algorithms import to64, from64, size64
-from algorithms import rand64, slow_equals
-from user import User
+from ca.security.algorithms import default_hash as h, default_mac as mac
+from ca.security.algorithms import to64, from64, size64
+from ca.security.algorithms import rand64, slow_equals
+from ca.security.authn.user import User
 
-from ..models import Base, DBSession
+from ca.models import Base, DBSession
 
 from pyramid.httpexceptions import HTTPFound, HTTPUnauthorized
 
@@ -17,6 +17,14 @@ from time import time
 
 CAP_BYTES = 40
 
+ACCESS_USE = 'access'
+GRANT_USE = 'grant'
+ADMIN_USE = 'admin'
+FILTER_USE = 'filter'
+USES = (ACCESS_USE, GRANT_USE, ADMIN_USE, FILTER_USE)
+ADMIN_USES = (ADMIN_USE,)
+NORMAL_USES = (ACCESS_USE, GRANT_USE, FILTER_USE)
+
 
 class Capability(Base):
 	__tablename__ = 'capabilities'
@@ -25,13 +33,14 @@ class Capability(Base):
 	id = Column(Integer, Sequence('capability_id_seq'), primary_key=True)
 	parent_id = Column(Integer, ForeignKey('%s.id' % __tablename__))
 	user_id = Column(Integer, ForeignKey(User.id), nullable=False)
-	use = Column(Enum('access', 'grant', 'filter', name='cap_use_types'), nullable=False)
+	use = Column(Enum(*USES, name='cap_use_types'), nullable=False)
 
 	key = Column(String(size64(CAP_BYTES)), nullable=False)
-	action_type = Column(String(30), nullable=False)
-	access_type = Column(String(30), nullable=False)
+	action_type = Column(String(30))
+	access_type = Column(String(30))
 
-	revoked = Column(Boolean, nullable=False, default=False)
+	# FIXME: This should really have a ForeignKey constraint on it
+	revoked = Column(Integer, default=None)
 	start_time = Column(Integer)
 	end_time = Column(Integer)
 
@@ -44,23 +53,21 @@ class Capability(Base):
 		return super(Capability, cls).__new__(cls, *args, **kwargs)
 
 	def __init__(self, user, action_type=None, access_type=None, start_time=None, end_time=None, parent=None):
+		if user.is_admin():
+			if self.use not in ADMIN_USES:
+				raise ValueError("The administrator can't have a capability of type %s" % self.use)
+		elif self.use not in NORMAL_USES:
+			raise ValueError('Only the administrator can have a capability of type %s' % self.use)
+
+		if parent is not None and parent.use != ADMIN_USE:
+			action_type = parent.action_type
+			access_type = parent.access_type
+
 		self.user = user
 		self.key = rand64(CAP_BYTES)
-
-		if parent is None:
-			self.parent = None
-			if action_type is None: raise ValueError()
-			if access_type is None: raise ValueError()
-			self.action_type = action_type
-			self.access_type = access_type
-		else:
-			if not parent.valid(): raise ValueError()
-			self.parent = parent
-			self.action_type = parent.action_type
-			self.access_type = parent.access_type
-			if start_time is None: start_time = parent.start_time
-			if end_time is None: end_time = parent.end_time
-
+		self.parent = parent
+		self.action_type = action_type
+		self.access_type = access_type
 		self.start_time = start_time
 		self.end_time = end_time
 
@@ -92,14 +99,14 @@ class Capability(Base):
 	def maybe_valid(cls, t=None):
 		if t is None: t = time() // 1
 		return (DBSession.query(FilterCapability)
-						 .filter(not_(Capability.revoked))
+						 .filter(Capability.revoked == None)
 						 .filter( or_(Capability.start_time == None,
 									  Capability.start_time <= t))
 						 .filter( or_(Capability.end_time == None,
 									  Capability.end_time >= t)))	
 
 	def _localvalid(self):
-		if self.revoked:
+		if self.revoked is not None:
 			return False
 		now = time() // 1
 		if self.start_time is not None and now < self.start_time:
@@ -114,12 +121,16 @@ class Capability(Base):
 		return self._valid
 
 	def revoke(self, child):
-		if child not in self.delegates:
+		parent = child.parent
+		while parent is not None and parent is not self:
+			parent = child.parent
+		if parent is None:
 			return False
-		child.revoked = True
+		child.revoked = self.id
+		return True
 
 	def relinquish(self):
-		self.revoked = True
+		self.revoked = self.id
 		return self
 
 	def constrain(self, constraint):
@@ -133,7 +144,7 @@ class Capability(Base):
 
 
 class AccessCapability(Capability):
-	__mapper_args__ = {'polymorphic_identity':'access'}
+	__mapper_args__ = {'polymorphic_identity':ACCESS_USE}
 
 	def auto(self, constraint=None, start_time=None, end_time=None):
 		return (FilterCapability(self.user, parent=self, start_time=start_time,
@@ -141,13 +152,21 @@ class AccessCapability(Capability):
 				.constrain(constraint))
 
 class GrantCapability(Capability):
-	__mapper_args__ = {'polymorphic_identity':'grant'}
+	__mapper_args__ = {'polymorphic_identity':GRANT_USE}
 
 	def grant(self, user, constraint=None, start_time=None, end_time=None, grant=False):
 		Cap = GrantCapability if grant else AccessCapability
 		return (Cap(user, parent=self, start_time=start_time, end_time=end_time)
 				.constrain(constraint))
 
+class AdminCapability(Capability):
+	__mapper_args__ = {'polymorphic_identity':ADMIN_USE}
+
+	def grant(self, user, action_type, access_type, constraint=None, start_time=None, end_time=None, grant=False):
+		Cap = GrantCapability if grant else AccessCapability
+		return (Cap(user, action_type, access_type, start_time, end_time, self)
+					.constrain(constraint))
+
 class FilterCapability(Capability):
-	__mapper_args__ = {'polymorphic_identity':'filter'}
+	__mapper_args__ = {'polymorphic_identity':FILTER_USE}
 

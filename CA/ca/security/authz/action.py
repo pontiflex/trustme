@@ -1,6 +1,6 @@
-from algorithms import size64, rand64
+from ca.security.algorithms import size64, rand64
 
-from ..models import Base, DBSession
+from ca.models import Base, DBSession
 
 from sqlalchemy import Column, ForeignKey, Sequence, Index
 from sqlalchemy import Integer, String

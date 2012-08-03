@@ -1,8 +1,8 @@
-from algorithms import size64, to64, from64
-from algorithms import secure_random, slow_equals
-from algorithms import pbkdf2_hmac_sha256, get_algorithm
+from ca.security.algorithms import size64, to64, from64
+from ca.security.algorithms import secure_random, slow_equals
+from ca.security.algorithms import pbkdf2_hmac_sha256, get_algorithm
 
-from ..models import Base, DBSession
+from ca.models import Base, DBSession
 
 from pyramid.security import authenticated_userid
 
@@ -38,6 +38,9 @@ class User(Base):
 		self.salt = to64(salt)
 		self.algorithm = PASSWORD_ALG.name
 		self.work_factor = PASSWORD_ROUNDS
+
+	def is_admin(self):
+		return DBSession.query(User).get(1) is self
 
 	@classmethod
 	def get(cls, userid):

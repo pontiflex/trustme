@@ -1,5 +1,5 @@
-from .models import DBSession
-from security.user import User
+from ca.models import DBSession
+from ca.security.authn.user import User
 
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -39,10 +39,10 @@ try it again.
 
 
 
-from security.access import Access
-from security.action import Action, Field
-from security.constraint import OrConstraint, AndConstraint
-from security.predicate import predicate
+from ca.security.authz.access import Access
+from ca.security.authz.action import Action, Field
+from ca.security.authz.constraint import OrConstraint, AndConstraint
+from ca.security.authz.predicate import predicate
 
 class Test(Field):
 	__mapper_args__ = {'polymorphic_identity':'test'}

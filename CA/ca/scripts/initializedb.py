@@ -1,10 +1,9 @@
-from ..models import DBSession, Base
+from ca.models import DBSession, Base
 
-from ..security.user import User
-from ..security.capability import AccessCapability, FilterCapability
-from ..security import access, action, constraint
-from ..security.fields import *
-from ..security.actions import *
+from ca.security.authn import user
+from ca.security.authz import access, action, capability, constraint
+from ca.security.authz.fields import *
+from ca.security.authz.actions import *
 
 from sqlalchemy import engine_from_config
 
@@ -31,13 +30,5 @@ def main(argv=sys.argv):
 	DBSession.configure(bind=engine)
 	Base.metadata.create_all(engine)
 	with transaction.manager:
-		user = User('root', 'test@example.com', 'thispasswordsucks')
-		DBSession.add(user)
-		DBSession.add(AccessCapability(user, 'foo', 'request'))
-		DBSession.add(AccessCapability(user, 'foo', 'accept'))
-
-		accept = FilterCapability(user, 'certify', 'accept')
-		approve = FilterCapability(user, 'certify', 'approve')
-		DBSession.add(accept)
-		DBSession.add(approve)
+		pass
 

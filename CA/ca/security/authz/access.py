@@ -1,8 +1,8 @@
-from action import Action
-from capability import Capability, FilterCapability
-from predicate import predicate
+from ca.security.authz.action import Action
+from ca.security.authz.capability import Capability, FilterCapability
+from ca.security.authz.predicate import predicate
 
-from ..models import Base, DBSession
+from ca.models import Base, DBSession
 
 from pyramid.httpexceptions import HTTPForbidden
 
