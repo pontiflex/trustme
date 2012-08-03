@@ -1,34 +1,69 @@
-from ca.security.authz.capability import Capability
+from ca.security.authz.capability import Capability, AccessCapability
+from ca.constants.security.authz.values import AUTH_POST_KEY
+
 from ca.security.authn.user import User
 
-from pyramid.security import Everyone, Authenticated
+from pyramid.security import Everyone, Authenticated, NO_PERMISSION_REQUIRED
 from pyramid.view import view_config
 
 from itertools import imap
 
 
-AUTH_POST_KEY = '_capabilities_'
-
-
-
-
 class CapabilityAuthorizationPolicy:
 	def permits(self, context, principals, permission):
+		# Return True if no permission is needed
+		if permission == NO_PERMISSION_REQUIRED:
+			return True
+
 		allowed = {}
+		user = None
+		every, authn = False, False
+
 		for p in principals:
-			split = p.split(':')
-			if split[0] == 'capability' and len(split) == 3:
-				perms = allowed.get(split[1], [])
-				perms.append(split[2])
-				allowed[split[1]] = perms
+			# Record if Everyone or Authenticated are found in the principals
+			if p == Everyone:        every = True
+			elif p == Authenticated: authn = True
+
+			# Otherwise, this should be an application principal
+			else:				
+				split = p.split(':')
+				# If this is a capability principal, record its type
+				if split[0] == 'capability' and len(split) == 3:
+					perms = allowed.get(split[1], [])
+					perms.append(split[2])
+					allowed[split[1]] = perms
+				# If this is a user principal, record the login. Make sure
+				# that at most one user principal appears in the list
+				elif split[0] == 'user' and len(split) == 2:
+					if user is not None:
+						raise ValueError('Principals cannot contain more than one user. '
+										 + 'Found %s after %s.'
+										 % (user, split[1]))
+					user = split[1]
 
 		for p in permission.split(';'):
-			split = p.split(':')
-			if split[0] == 'capability' and len(split) >= 3:
-				perms = allowed.get(split[1], [])
-				for access in split[2:]:
-					if access not in perms:
+			# If Everyone or Authenticated are required but weren't presented, reject
+			if p == Everyone:
+				if not every: return False
+			elif p == Authenticated:
+				if not authn: return False
+			# Otherwise, this should be an application permission
+			else:
+				split = p.split(':')
+				# If this is a capability permission, make sure that all required
+				# access types were presented for the permission's action type
+				if split[0] == 'capability' and len(split) >= 3:
+					perms = allowed.get(split[1], [])
+					for access in split[2:]:
+						if access not in perms:
+							return False
+				# If this is a user permission, make sure that user was presented
+				elif split[0] == 'user' and len(split) == 2:
+					if user != split[1]:
 						return False
+				# Fail closed on an unknown permission
+				else:
+					raise ValueError('Found unknown permission %s.' % p)
 				
 		return True
 
@@ -39,44 +74,25 @@ class CapabilityAuthorizationPolicy:
 
 
 def capability_finder(userid, request):
+	# Always include the Everyone principal
 	principals = [Everyone]
+
+	# Make sure a user with the provided id actually exists
 	user = User.get(userid)
 	if user is not None:
+		# Include the given user's principal and the Authenticated principal
 		principals.append('user:%s' % userid)
 		principals.append(Authenticated)
+
+		# Grab the hash tokens present in the request and the hash lookup
+		# function for all of the user's valid and applicable capabilities
 		tokens = request.POST.getall(AUTH_POST_KEY)
-		presented = Capability.presented(user, request.session.get_csrf_token())
+		presented = AccessCapability.presented(user, request.session.get_csrf_token())
+
+		# Add "capability:<action_type>:<access_type>" to the principals for
+		# each capability which was correctly presented as a token in the request
 		principals.extend((('capability:%s:%s' % (c.action, c.type))
 							for c in imap(presented, tokens)
-							if c is not None and c.user is user))
-	print principals
+							if c is not None))
 	return principals
-
-def allow(request, caps, target=None, button='Go', id=None, form=''):
-	if not caps:
-		return ''
-	present = Capability.present(request.session.get_csrf_token())
-	keys = ''.join(('<input type="hidden" name="%s" value="%s" />'
-						% (AUTH_POST_KEY, cap)
-					 for cap in map(present, caps)))
-	if target is None:
-		return keys
-	id = ' ' if id is None else ' id="%s" ' % str(id)
-	open = '<form%smethod="POST" action="%s">%s' % (id, target, keys)
-	close = '%s<input type="submit" value="%s" /></form>' % (form, button)
-	return open + close
-
-def clear(request):
-	def callback(req, resp):
-		resp.delete_cookie(AUTH_POST_KEY)
-	request.add_response_callback(callback)
-
-
-
-
-
-
-
-
-
 

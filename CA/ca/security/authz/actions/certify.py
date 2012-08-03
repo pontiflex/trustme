@@ -37,11 +37,11 @@ def check_cert(request):
 @view_config(route_name='certify')
 def certify(request):		
 	if 'csr' in request.POST:
-		csr = Certify(request.POST['csr'])
 		try:
-			return Response(str(Access(request).perform(csr)))
+			csr = Certify(request.POST['csr'])
 		except ValueError as e:
 			raise HTTPBadRequest(e.args[0])
+		return Response(str(Access(request).perform(csr)))
 	return Response('<html><head></head><body><form method="post"><textarea name="csr"></textarea><input type="submit" value="Request" /></form></body></html>')
 
 class Certify(Action):

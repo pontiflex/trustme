@@ -1,7 +1,9 @@
 from ca.security.algorithms import default_hash as h, default_mac as mac
 from ca.security.algorithms import to64, from64, size64
 from ca.security.algorithms import rand64, slow_equals
+
 from ca.security.authn.user import User
+from ca.constants.security.authz.values import AUTH_POST_KEY
 
 from ca.models import Base, DBSession
 
@@ -48,21 +50,36 @@ class Capability(Base):
 	user = relationship(User, backref=backref('capabilities'))
 
 	def __new__(cls, *args, **kwargs):
+		# Prevent the creation of raw Capability objects
 		if cls is Capability:
 			raise TypeError('Capability cannot be directly instantiatied')
 		return super(Capability, cls).__new__(cls, *args, **kwargs)
 
 	def __init__(self, user, action_type=None, access_type=None, start_time=None, end_time=None, parent=None):
+		# Make sure the given user is allowed to have this capability
 		if user.is_admin():
 			if self.use not in ADMIN_USES:
 				raise ValueError("The administrator can't have a capability of type %s" % self.use)
 		elif self.use not in NORMAL_USES:
 			raise ValueError('Only the administrator can have a capability of type %s' % self.use)
 
-		if parent is not None and parent.use != ADMIN_USE:
-			action_type = parent.action_type
-			access_type = parent.access_type
+		if parent is not None:
+			# Action/access types default to those of a non-admin parent
+			if parent.use != ADMIN_USE:
+				action_type = parent.action_type
+				access_type = parent.access_type
+			# Missing start/end times default to those of the parent,
+			# while given ones must fall within any limits set by the parent
+			if start_time is None: start_time = parent.start_time
+			else: start_time = (start_time
+					if parent.start_time is None
+					else max(start_time, parent.start_time))
+			if end_time is None: end_time = parent.end_time
+			else: end_time = (end_time
+					if parent.end_time is None
+					else min(end_time, parent.end_time))
 
+		# Set all the values
 		self.user = user
 		self.key = rand64(CAP_BYTES)
 		self.parent = parent
@@ -71,14 +88,18 @@ class Capability(Base):
 		self.start_time = start_time
 		self.end_time = end_time
 
+		# Call the reconstructor on new instances as well
 		self._init()
 
 	@reconstructor
 	def _init(self):
-		self._valid = self._localvalid()
+		# Cache local validity
+		self._valid, _ = self._local_valid()
 
 	@staticmethod
 	def present(nonce):
+		# The function returns a MAC where the key is the given nonce
+		# and the plaintext is the unique "key" of a capability
 		h = mac.create(nonce)
 		def pres(cap):
 			h2 = h.copy()
@@ -88,56 +109,91 @@ class Capability(Base):
 
 	@classmethod
 	def presented(cls, user, nonce):
+		# Grab the hashing function
 		p = cls.present(nonce)
-		# Collisions are only probabilistically impossible here
-		d = {p(c):c for c in user.capabilities if c.valid()}
-		print '\n' * 10
-		print d
+		# Grab the user's capabilities of the given type
+		caps = cls.maybe_valid().filter(Capability.user == user)
+		# Compute a dictionary of the hash tokens for each capability
+		d = {p(c):c for c in caps if c.valid()}
+		# The resulting function looks up the given token in the dictionary
 		return lambda(k): d.get(k)
 
 	@classmethod
-	def maybe_valid(cls, t=None):
-		if t is None: t = time() // 1
-		return (DBSession.query(FilterCapability)
+	def maybe_valid(cls):
+		# Filter out capabilities of the wrong type, revoked capabilities,
+		# and capabilities which are either expired or aren't valid yet
+		t = time() // 1
+		return (DBSession.query(cls)
 						 .filter(Capability.revoked == None)
 						 .filter( or_(Capability.start_time == None,
 									  Capability.start_time <= t))
 						 .filter( or_(Capability.end_time == None,
-									  Capability.end_time >= t)))	
+									  Capability.end_time >= t)))
 
-	def _localvalid(self):
+	def _local_valid(self):
+		# Check for revocation
 		if self.revoked is not None:
-			return False
+			return False, self.revoked
 		now = time() // 1
+		# Check for early use...
 		if self.start_time is not None and now < self.start_time:
-			return False
-		elif self.end_time is not None and now > self.end_time:
-			return False
-		return True
+			return False, None
+		# ...and expiration
+		elif self.end_time is not None and now > self.end_time:			
+			return False, None
+		return True, None
 
-	def valid(self):
-		self._valid = (self._valid and self._localvalid()
-					   and (self.parent is None or self.parent.valid()))
-		return self._valid
+	def valid(self, give_revoked=False):
+		# If the cache reads valid, recheck the local validity
+		if self._valid:	self._valid = self._local_valid()
+
+		# If the cache still reads valid, check the recursive
+		# parental validity, and save the revoker if one is found
+		if self._valid:
+			self._valid, self.revoked = (True, None
+										if self.parent is None
+										else self.parent.valid(True))
+
+		# Return the cached validity, and the revoker if requested
+		return self._valid, self.revoked if give_revoked else self._valid
 
 	def revoke(self, child):
+		# If the capability is already revoked, return its revoker
+		if child.revoked is not None:
+			return child.revoked
+
+		# Don't allow revocation unless the target capability
+		# is a descendant of the calling capability
 		parent = child.parent
-		while parent is not None and parent is not self:
+		while parent is not None:
+			# If we find a revoked parent (including the caller)
+			# along the way, use that revocation instead
+			if parent.revoked is not None:
+				child.revoked = parent.revoked
+				return child.revoked
+			# Break out if the traversal finds the caller
+			if parent is self:
+				break
+			# Otherwise keep traversing up the tree
 			parent = child.parent
+		# No revocation occurs if the caller wasn't found
 		if parent is None:
-			return False
+			return None
+
+		# Mark the child as revoked by this capability
 		child.revoked = self.id
-		return True
+		return child.revoked
 
 	def relinquish(self):
+		# The capability "revokes" and returns itself
 		self.revoked = self.id
 		return self
 
 	def constrain(self, constraint):
 		if self.constraint is not None:
-			raise ValueError()
+			raise ValueError('Capability already constrained')
 		if constraint is not None and constraint.capability is not None:
-			raise ValueError()
+			raise ValueError('Constraint already applied')
 		self.constraint = constraint
 		return self
 		
@@ -150,6 +206,23 @@ class AccessCapability(Capability):
 		return (FilterCapability(self.user, parent=self, start_time=start_time,
 														 end_time=end_time)
 				.constrain(constraint))
+
+	@classmethod
+	def access(cls, nonce, caps, target=None, button='Go', id=None, form=''):
+		# Grab the function to compute hash tokens for the capabilities
+		present = cls.present(nonce)
+		# Compute the tokens and create a hidden input for each one
+		keys = ''.join(('<input type="hidden" name="%s" value="%s" />'
+							% (AUTH_POST_KEY, cap)
+						 for cap in map(present, caps)))
+		# If no target was given, just return the hidden inputs
+		if target is None:
+			return keys
+		# Otherwise return a form with the given id, non-token contents, and button label
+		id = ' ' if id is None else ' id="%s" ' % str(id)
+		open = '<form%smethod="POST" action="%s">%s' % (id, target, keys)
+		close = '%s<input type="submit" value="%s" /></form>' % (form, button)
+		return open + close
 
 class GrantCapability(Capability):
 	__mapper_args__ = {'polymorphic_identity':GRANT_USE}
