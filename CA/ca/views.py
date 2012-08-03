@@ -39,32 +39,7 @@ try it again.
 
 
 
-from ca.security.authz.access import Access
-from ca.security.authz.action import Action, Field
-from ca.security.authz.constraint import OrConstraint, AndConstraint
-from ca.security.authz.predicate import predicate
-
-class Test(Field):
-	__mapper_args__ = {'polymorphic_identity':'test'}
-
-	@predicate
-	@classmethod
-	def foo(cls, *args, **kwargs):
-		return (Action.id.in_(DBSession.query(Action.id).join(Test)))
-
 @view_config(route_name='test')
 def sandbox(request):
-	print '+' * 50
-
-	access = Access(request)
-	cons = OrConstraint(None, Test, 'foo')
-	cons2 = AndConstraint(cons, Test, 'foo')
-	cons.query(access).all()
-
-	print '-' * 50
-
-	user = User.authenticated(request)
-	if user is not None:
-		return Response(allow(request, user.capabilities, '/'))
 	return Response()
 

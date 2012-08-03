@@ -31,7 +31,7 @@ def verify_puzzle(url, login, password, solution):
 
 
 
-@view_config(route_name='login', renderer='ca:templates/security/login.pt')
+@view_config(route_name='login', renderer='ca:templates/security/authn/login.pt')
 def login(request):
 	login_url = request.route_url('login')
 	referrer = request.referrer
