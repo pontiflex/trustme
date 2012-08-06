@@ -1,0 +1,23 @@
+<!--
+Parameters:
+	csr_field: Name of CSR input field
+-->
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+			xmlns:tal="http://xml.zope.org/namespaces/tal">
+
+<head>
+	<title>Certify - TrustMe</title>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+	<link rel="shortcut icon"
+				href="${request.static_url('ca:static/favicon.ico')}" />
+</head>
+
+<body>
+	<form method="post">
+		<textarea name="${csr_field}"></textarea>
+		<input type="submit" value="Request" />
+	</form>
+</body>
+
+</html>

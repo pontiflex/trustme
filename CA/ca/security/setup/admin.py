@@ -1,5 +1,13 @@
-from ca.security.authz.capability import AdminCapability
+from ca.security.authz.capability import AdminCapability, GrantCapability
+from ca.security.authz.actions.newuser import POLY_ID as NEW_USER_TYPE
+from ca.security.authz.access import FILTER as FILTER_ACCESS, EXIT as PROCESS_ACCESS
+
 from ca.security.authn.user import User
+from ca.security.authn.credentials import (
+		validate_username,
+		validate_email,
+		validate_passwords,
+	)
 
 from ca.models import DBSession
 
@@ -8,7 +16,6 @@ from pyramid.httpexceptions import HTTPFound
 from pyramid.view import view_config
 
 
-ROUTE = 'setup_admin'
 TEMPLATE = 'ca:templates/security/setup/admin.pt'
 
 
@@ -16,51 +23,49 @@ def needs_admin(info, request):
 	return DBSession.query(User).count() == 0
 
 
-def _validate_username(username):
-	if len(username) < 3:
-		return 'Username must be at least 3 characters long'
-	return ''
-
-def _validate_email(email):
-	return ''
-
-def _validate_password(password):
-	if len(password) < 8:
-		return 'Password must be at least 8 characters long'
-	return ''
-
-
-@view_config(route_name=ROUTE, renderer=TEMPLATE)
+@view_config(route_name='home', renderer=TEMPLATE, custom_predicates=(needs_admin,))
 def setup_admin(request):
-	name_length = User.login.property.columns[0].type.length
-	mail_length = User.email.property.columns[0].type.length
+	mail_field = 'email', User.email.property.columns[0].type.length
+	pass_fields = 'pass1', 'pass2', 'pass3', 'pass4'
+	submitted = 'newuser.submitted'
 
-	username, email, pass1, pass2, message = '', '', '', '', ''
+	email, passwords, message = '', ('', '', '', ''), ''
 
-	if 'form.submitted' in request.params:
-		username = request.POST['username']
-		email = request.POST['email']
-		pass1 = request.POST['pass1'].encode('utf-8')
-		pass2 = request.POST['pass2'].encode('utf-8')
-		if not message:	message = _validate_username(username)
-		if not message:	message = _validate_email(email)
-		if not message:	message = _validate_password(pass1)
-		if not message and pass1 != pass2:
-			message = "Passwords don't match"
+	if submitted in request.params:
+		email = request.POST[mail_field[0]]
+		passwords = (request.POST[pass_fields[0]].encode('utf-8'),
+					 request.POST[pass_fields[1]].encode('utf-8'),
+					 request.POST[pass_fields[2]].encode('utf-8'),
+					 request.POST[pass_fields[3]].encode('utf-8'),)
+		if not message:	message = validate_email(email)
+		if not message:	message = validate_passwords((passwords[0], passwords[1]))
+		if not message:	message = validate_passwords((passwords[2], passwords[3]))
+		if not message and passwords[0] == passwords[2]:
+			message = 'ROOT and USERS passwords must be different'
 		if not message:
-			user = User(username, email, pass1)
-			DBSession.add(user)
-			DBSession.add(AdminCapability(user))
+			priv_root = User('ROOT', email, passwords[0])
+			DBSession.add(priv_root)
+			DBSession.add(AdminCapability(priv_root))
+
+			user_root = User('USERS', email, passwords[2])
+			DBSession.add(user_root)
+			for access_type in FILTER_ACCESS + PROCESS_ACCESS:
+				grant = GrantCapability(user_root, NEW_USER_TYPE, access_type)				
+				DBSession.add(grant)
+				access = grant.grant(user_root)
+				DBSession.add(access)
+				if access_type == FILTER_ACCESS[0]:
+					DBSession.add(access.auto())
+
 			return HTTPFound(location=request.route_url('home'),
-							 headers=remember(request, username))
+							 headers=remember(request, 'USERS'))
 
 	return dict(
-		name_length = name_length,
-		mail_length = mail_length,
+		mail_field = mail_field,
+		pass_fields = pass_fields,
 		message = message,
-		username = username,
 		email = email,
-		pass1 = pass1,
-		pass2 = pass2
+		passwords = passwords,
+		submitted = submitted,
 		)
 

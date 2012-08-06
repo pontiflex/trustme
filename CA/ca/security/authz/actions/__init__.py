@@ -1,1 +1,1 @@
-__all__ = ['certify']
+__all__ = ['certify', 'newuser']

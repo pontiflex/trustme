@@ -1,7 +1,6 @@
 from ca.models import DBSession
 from ca.security.authz.policy import capability_finder
 from ca.security.authz.policy import CapabilityAuthorizationPolicy
-from ca.security.setup.admin import needs_admin
 
 import pyramid.tweens
 from pyramid.authentication import AuthTktAuthenticationPolicy
@@ -39,7 +38,6 @@ def main(global_config, **settings):
 
 	config.add_static_view('static', 'static', cache_max_age=3600)
 
-	config.add_route('setup_admin', '/', custom_predicates=(needs_admin,))
 	config.add_route('home', '/')
 	config.add_route('test', '/test')
 
@@ -47,7 +45,9 @@ def main(global_config, **settings):
 	config.add_route('logout', '/logout')
 
 	config.add_route('certify', '/certify')
-	config.add_route('check_cert', '/check_cert')
+	config.add_route('check_cert', '/certify/check')
+
+	config.add_route('new_user', '/new-user')
 
 	config.scan()
 	return config.make_wsgi_app()

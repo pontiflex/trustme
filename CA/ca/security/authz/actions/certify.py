@@ -15,6 +15,11 @@ from pyramid.response import Response
 from pyramid.view import view_config
 
 from sqlalchemy import Column, ForeignKey, Integer, Text
+from sqlalchemy import not_
+
+
+POLY_ID = 'certify'
+
 
 @view_config(route_name='check_cert')
 def check_cert(request):
@@ -34,19 +39,22 @@ def check_cert(request):
 		return Response('Rejected')
 	return Response('<html><head></head><body><form method="post"><input type="text" name="serial"></input><input type="submit" value="Check" /></form></body></html>')
 
-@view_config(route_name='certify')
-def certify(request):		
-	if 'csr' in request.POST:
+@view_config(route_name='certify', renderer='ca:templates/security/authz/actions/certify.pt')
+def certify(request):
+	csr_field = 'csr'
+	if csr_field in request.POST:
 		try:
-			csr = Certify(request.POST['csr'])
+			csr = Certify(request.POST[csr_field])
 		except ValueError as e:
 			raise HTTPBadRequest(e.args[0])
-		return Response(str(Access(request).perform(csr)))
-	return Response('<html><head></head><body><form method="post"><textarea name="csr"></textarea><input type="submit" value="Request" /></form></body></html>')
+		return Access(request).perform(csr)
+
+	caps, actions = Access.allowable(request, POLY_ID)
+	return dict(csr_field=csr_field)
 
 class Certify(Action):
 	__tablename__ = 'certification_requests'
-	__mapper_args__ = {'polymorphic_identity':'certify'}
+	__mapper_args__ = {'polymorphic_identity':POLY_ID}
 	id = Column(Integer, ForeignKey(Action.id), primary_key=True)
 	csr = Column(Text, nullable=False)
 	cert = Column(Text)
@@ -57,7 +65,7 @@ class Certify(Action):
 		self.cert = None
 
 		with RawInput(data) as path:
-			req = PKCS10Request(path)
+			req = PKCS10Request(path, *args, **kwargs)
 			if not req.valid:
 				raise ValueError('Error parsing CSR')
 
@@ -69,7 +77,7 @@ class Certify(Action):
 
 	def perform(self):
 		self.cert = 'TODO: Sign cert<br>%s' % self.serial
-		return self.cert
+		return Response(self.cert)
 
 	
 

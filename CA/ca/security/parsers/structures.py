@@ -23,7 +23,8 @@ class Attributes(dict):
 class Raw(str):
 	def __new__(cls, path, loc, *args, **kwargs):
 		with open(path, 'r') as f:
-			raw = ''.join(STRIP_LINE.sub('', f.read()).strip('\n').splitlines())
+			raw = f.read().replace('\r\n', '\n').replace('\r', '\n')
+			raw = ''.join(STRIP_LINE.sub('', raw).strip('\n').splitlines())
 			if kwargs.get('inform', 'pem') == 'pem':
 				raw = b64decode(raw)
 			start = loc[0] + loc[1]

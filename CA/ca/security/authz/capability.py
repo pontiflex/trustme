@@ -119,16 +119,18 @@ class Capability(Base):
 		return lambda(k): d.get(k)
 
 	@classmethod
-	def maybe_valid(cls):
+	def maybe_valid(cls, t=None, user=None):
 		# Filter out capabilities of the wrong type, revoked capabilities,
 		# and capabilities which are either expired or aren't valid yet
-		t = time() // 1
-		return (DBSession.query(cls)
-						 .filter(Capability.revoked == None)
-						 .filter( or_(Capability.start_time == None,
-									  Capability.start_time <= t))
-						 .filter( or_(Capability.end_time == None,
-									  Capability.end_time >= t)))
+		t = time() // 1 if t is None else t
+		query = DBSession.query(cls)
+		if user is not None:
+			query = query.filter(Capability.user == user)
+		return (query.filter(Capability.revoked == None)
+					 .filter( or_(Capability.start_time == None,
+								  Capability.start_time <= t))
+					 .filter( or_(Capability.end_time == None,
+								  Capability.end_time >= t)))
 
 	def _local_valid(self):
 		# Check for revocation
@@ -145,12 +147,12 @@ class Capability(Base):
 
 	def valid(self, give_revoked=False):
 		# If the cache reads valid, recheck the local validity
-		if self._valid:	self._valid = self._local_valid()
+		if self._valid:	self._valid, self.revoked = self._local_valid()
 
 		# If the cache still reads valid, check the recursive
 		# parental validity, and save the revoker if one is found
 		if self._valid:
-			self._valid, self.revoked = (True, None
+			self._valid, self.revoked = ((True, None)
 										if self.parent is None
 										else self.parent.valid(True))
 
@@ -196,7 +198,8 @@ class Capability(Base):
 			raise ValueError('Constraint already applied')
 		self.constraint = constraint
 		return self
-		
+
+
 
 
 class AccessCapability(Capability):

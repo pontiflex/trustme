@@ -1,12 +1,18 @@
 from ca.security.authz.action import Action
-from ca.security.authz.capability import Capability, FilterCapability
+from ca.security.authz.capability import (
+		Capability,
+		AccessCapability,
+		FilterCapability,
+	)
 from ca.security.authz.predicate import predicate
+
+from ca.security.authn.user import User
 
 from ca.models import Base, DBSession
 
-from pyramid.httpexceptions import HTTPForbidden
+from pyramid.httpexceptions import HTTPAccepted, HTTPForbidden
 
-from sqlalchemy import and_, not_
+from sqlalchemy import and_, or_, not_
 from sqlalchemy import Column, Sequence, ForeignKey
 from sqlalchemy import String, Integer, Boolean
 from sqlalchemy.orm import relationship, backref
@@ -54,34 +60,68 @@ class Access(Base):
 		self.capability = capability
 		self.allowed = None
 
-	@staticmethod
-	def requested(action, success=True):
-		return (DBSession.query(Access)
-					.filter(Access.action == action)
-					.filter(Access.capability == None)
-				.count() > 0)
+	@classmethod
+	def requested(cls, action=None):
+		if action is None:
+			return (DBSession.query(Action)
+						.join(Access)
+						.filter(Access.capability == None)
+						.distinct())
+		else:
+			return action in cls.requested()
 
-	@staticmethod
-	def filtered(action, success=True):
-		request = (DBSession.query(Access).join(Capability)
-						.filter(Access.action == action)
+	@classmethod
+	def filtered(cls, action=None, success=True):
+		if action is None:
+			query = (DBSession.query(Action)
+						.join(Access).join(Capability)
 						.filter(Access.allowed == True))
-		count = request.filter(Capability.access_type.in_(FILTER)).count()
+			if success is None:
+				query = query.filter(Capability.access_type.in_(FILTER))
+			else:
+				query = query.filter(Capability.access_type ==
+							 (FILTER[0] if success else FILTER[1]))
+			return query.distinct()
+		elif action not in cls.filtered(success=None): return False
+		elif success is None: return True
+		else: return success != (action in cls.filtered(success=False))
 
-		if count == 0:		return False
-		if success is None:	return True
-		return success == (count == request.filter(Capability.access_type == FILTER[0]).count())
-
-	@staticmethod
-	def processed(action, success=True):
-		request = (DBSession.query(Access).join(Capability)
-						.filter(Access.action == action)
+	@classmethod
+	def processed(cls, action=None, success=True):
+		if action is None:
+			query = (DBSession.query(Action)
+						.join(Access).join(Capability)
 						.filter(Access.allowed == True))
-		count = request.filter(Capability.access_type.in_(EXIT)).count()
+			if success is None:
+				query = query.filter(Capability.access_type.in_(EXIT))
+			else:
+				query = query.filter(Capability.access_type ==
+							 (EXIT[0] if success else EXIT[1]))
+			return query.distinct()
+		elif action not in cls.processed(success=None): return False
+		elif success is None: return True
+		else: return success != (action in cls.processed(success=False))
 
-		if count == 0:		return False
-		if success is None:	return True
-		return success == (count == request.filter(Capability.access_type == EXIT[0]).count())
+	@classmethod
+	def pending(cls, action):
+		if isinstance(action, str):
+			filtered = cls.filtered().filter(Action.type == action)
+			processed = cls.processed(success=None).filter(Action.type == action)
+			return filtered.except_(processed)
+		else: return action in cls.pending(action.type)
+
+	@classmethod
+	def allowable(cls, request, action_type):
+		user = User.authenticated(request)
+		caps = (AccessCapability.maybe_valid(user=user)
+					.filter(Capability.action_type == action_type)
+					.filter(Capability.access_type.in_(EXIT)))
+		caps = [cap for cap in caps if cap.valid()]
+		pending = cls.pending(action_type)
+		if None in (cap.constraint for cap in caps):
+			return caps, pending
+		cons = or_(*(cap.constraint.condition(Access(request, cap)) for cap in caps))
+		return caps, pending.filter(cons)
 
 	def action_type(self):
 		if self.capability is None:
@@ -110,7 +150,7 @@ class Access(Base):
 						.filter(Capability.action_type == self.action_type())
 						.filter(Capability.access_type.in_(access_types)))
 
-	def perform(self, action=None, value=False):
+	def perform(self, action=None, value=None):
 		# Don't perform the access again. This is the only error condition which
 		# should prevent the access from being logged
 		if not self.vetted and self.allowed is not None:
@@ -140,7 +180,7 @@ class Access(Base):
 					# If the access is an approval for processing, perform the action
 					return self.action.perform()
 				# Otherwise, logging this access is enough to mark the action as denied
-				return 'Denied'
+				return HTTPForbidden('Denied')
 			elif at in FILTER:
 				# Make sure that the action has been requested but not filtered
 				# before making any attempt to process its filtration
@@ -157,13 +197,13 @@ class Access(Base):
 					def fail(msg): return value
 				else:
 					# Otherwise, logging this access is enough to mark the action as rejected
-					return 'Rejected'				
+					return HTTPForbidden('Rejected')
 			elif at == ENTER:
 				# If this access is a new request, failure should raise an unauthorized
 				# exception and store the failed access. Possible automatic accesses are
 				# drawn from the FILTER list
 				types = FILTER
-				value = action.serial
+				value = HTTPAccepted(action.serial)
 				def fail(msg): raise HTTPForbidden(msg)
 			else: raise RuntimeError('%s is not a valid access type' % str(at))
 
@@ -215,23 +255,8 @@ class Access(Base):
 		finally:
 			# Mark the access as not vetted to prevent repeat access during this session
 			self.vetted = False
+
+		if value is None:
+			raise RuntimeException('Illegal return state')
 		return value
-
-			
-
-	def targets(self):
-		if self.capability is None:
-			return []
-		if self.capability.constraint is None:
-			return []
-		targets = self.capability.constraint.query(self)
-
-		at = self.access_type()
-		if at in FILTER:
-			return targets.join(Access).filter(Access.capability == None)
-		elif at in EXIT:
-			return (targets.join(Access).join(Capability)
-							.filter(Capability.access_type == FILTER[0])
-							.distinct())
-		else: assert False
 
