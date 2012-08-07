@@ -1,4 +1,3 @@
-from ca.security.authz.access import Access
 from ca.security.authz.action import Action, Field
 from ca.security.authz.capability import Capability
 from ca.security.authz.predicate import get_predicate
@@ -44,19 +43,19 @@ class Constraint(Base):
 		self.kwargs = kwargs
 		self.clause = clause
 
-	def condition(self, access):
-		field = access if self.field is None else self.field
+	def condition(self, access_info):
+		field = access_info if self.field is None else self.field
 		conds = [get_predicate(field, self.predicate)(*self.args, **self.kwargs)]
-		conds.extend((child.condition(access) for child in self.children))
+		conds.extend((child.condition(access_info) for child in self.children))
 		cond = and_(*conds) if self.conjunctive else or_(*conds)
 		if self.negated: cond = not_(cond)
 		return cond
 
-	def query(self, access):
-		return DBSession.query(Action).filter(self.condition(access))
+	def query(self, access_info):
+		return DBSession.query(Action).filter(self.condition(access_info))
 
-	def allows(self, action, access):
-		return action in self.query(access)
+	def allows(self, action, access_info):
+		return action in self.query(access_info)
 
 class AndConstraint(Constraint):
 	__mapper_args__ = {'polymorphic_identity':True}

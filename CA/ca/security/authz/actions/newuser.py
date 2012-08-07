@@ -1,5 +1,6 @@
 from ca.security.authz.access import Access
 from ca.security.authz.action import Action
+from ca.security.authz.capability import AccessCapability
 
 from ca.security.authz.fields.str_ import StrField
 
@@ -12,7 +13,7 @@ from ca.security.authn.credentials import (
 
 from ca.models import DBSession
 
-from pyramid.httpexceptions import HTTPFound, HTTPBadRequest, HTTPNotFound
+from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden, HTTPNotFound
 from pyramid.security import remember, Authenticated
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -25,19 +26,18 @@ POLY_ID = 'newuser'
 TEMPLATE = 'ca:templates/security/authz/actions/newuser.pt'
 
 
-#@view_config(route_name='check_user')
-def check_user(request):
-	# TODO
-	return Response()
 
-@view_config(route_name='new_user', renderer=TEMPLATE, permission=Authenticated)
-def new_user(request):
+@view_config(route_name='request_user', renderer=TEMPLATE, permission=Authenticated)
+def request_user(request):
 	name_field = 'username', User.login.property.columns[0].type.length
 	mail_field = 'email', User.email.property.columns[0].type.length
 	pass_fields = 'pass1', 'pass2'
 	submitted = 'newuser.submitted'
 
 	username, email, passwords, message = '', '', ('', ''), ''
+	username = 'bob'
+	email = 'douglasm@pontiflex.com'
+	passwords = ('password', 'password')
 
 	if submitted in request.params:
 		username = request.POST[name_field[0]]
@@ -49,17 +49,7 @@ def new_user(request):
 		if not message:	message = validate_passwords(passwords)
 		if not message:
 			new = NewUser(User(username, email, passwords[0]))
-			return Access(request).perform(new)
-
-	caps, actions = Access.allowable(request, POLY_ID)
-	print '+' * 100
-	for cap in caps:
-		print cap.action_type, cap.access_type
-	print '=' * 50
-	for action in actions:
-		print action.serial
-		print '*' * 50
-	print '-' * 100
+			return Access(request).perform(new)	
 
 	return dict(
 		name_field = name_field,
@@ -71,6 +61,32 @@ def new_user(request):
 		passwords = passwords,
 		submitted = submitted,
 		)
+
+@view_config(route_name='approve_user', renderer=TEMPLATE, permission=Authenticated)
+def approve_user(request):
+	action_field = 'action_id'
+
+	performed = None
+	access = Access(request)
+	allowable = access.allowable(POLY_ID)
+	if action_field in request.POST:
+		action = DBSession.query(NewUser).get(request.POST[action_field])
+		if action is None or action not in allowable:
+			raise HTTPNotFound('Invalid action id')
+		access.perform(action, allowable[action][0])
+		performed = action
+	options = ''
+	nonce = request.session.get_csrf_token()
+	for action in allowable:
+		if action is performed:
+			continue
+		form = '<input type="hidden" name="%s" value="%i" />' % (action_field, action.id)
+		for field in action.fields:
+			options += '%s<br/>' % (field)
+		options += AccessCapability.access(nonce, allowable[action], request.url, 'Confirm', form=form) + '<br/>'
+	return Response(options)
+	
+	
 
 
 class NewUser(Action):
@@ -91,5 +107,5 @@ class NewUser(Action):
 			DBSession.add(self.user)
 		except IntegrityError:
 			raise HTTPBadRequest('Username already taken')
-		return HTTPFound(headers=remember(request, self.user.login))
+		return Response('Account successfully created')
 

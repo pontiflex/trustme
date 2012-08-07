@@ -94,7 +94,7 @@ class Capability(Base):
 	@reconstructor
 	def _init(self):
 		# Cache local validity
-		self._valid, _ = self._local_valid()
+		self._valid, _ = self.__local_valid()
 
 	@staticmethod
 	def present(nonce):
@@ -112,27 +112,30 @@ class Capability(Base):
 		# Grab the hashing function
 		p = cls.present(nonce)
 		# Grab the user's capabilities of the given type
-		caps = cls.maybe_valid().filter(Capability.user == user)
+		caps = cls.usable(user=user)
 		# Compute a dictionary of the hash tokens for each capability
-		d = {p(c):c for c in caps if c.valid()}
+		d = {p(c):c for c in caps}
 		# The resulting function looks up the given token in the dictionary
 		return lambda(k): d.get(k)
 
 	@classmethod
-	def maybe_valid(cls, t=None, user=None):
-		# Filter out capabilities of the wrong type, revoked capabilities,
-		# and capabilities which are either expired or aren't valid yet
+	def usable(cls, t=None, user=None, action_type=None, access_types=None):
 		t = time() // 1 if t is None else t
 		query = DBSession.query(cls)
 		if user is not None:
 			query = query.filter(Capability.user == user)
-		return (query.filter(Capability.revoked == None)
+		if action_type is not None:
+			query = query.filter(Capability.action_type == action_type)
+		if access_types is not None:
+			query = query.filter(Capability.access_type.in_(access_types))
+		query = (query.filter(Capability.revoked == None)
 					 .filter( or_(Capability.start_time == None,
 								  Capability.start_time <= t))
 					 .filter( or_(Capability.end_time == None,
 								  Capability.end_time >= t)))
+		return [cap for cap in query if cap.valid()]
 
-	def _local_valid(self):
+	def __local_valid(self):
 		# Check for revocation
 		if self.revoked is not None:
 			return False, self.revoked
@@ -147,7 +150,7 @@ class Capability(Base):
 
 	def valid(self, give_revoked=False):
 		# If the cache reads valid, recheck the local validity
-		if self._valid:	self._valid, self.revoked = self._local_valid()
+		if self._valid:	self._valid, self.revoked = self.__local_valid()
 
 		# If the cache still reads valid, check the recursive
 		# parental validity, and save the revoker if one is found
@@ -223,7 +226,8 @@ class AccessCapability(Capability):
 			return keys
 		# Otherwise return a form with the given id, non-token contents, and button label
 		id = ' ' if id is None else ' id="%s" ' % str(id)
-		open = '<form%smethod="POST" action="%s">%s' % (id, target, keys)
+		target = ' ' if target is None else ' action="%s"' % str(target)
+		open = '<form%smethod="POST"%s>%s' % (id, target, keys)
 		close = '%s<input type="submit" value="%s" /></form>' % (form, button)
 		return open + close
 

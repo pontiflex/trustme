@@ -52,6 +52,9 @@ class Field(Base):
 		self.action = action
 		self.name = name
 
+	def __repr__(self):
+		return self.name
+
 	@classmethod
 	def name_query(cls, name):
 		return DBSession.query(Action.id).join(cls).filter(cls.name == name)

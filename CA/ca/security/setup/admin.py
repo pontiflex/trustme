@@ -30,6 +30,8 @@ def setup_admin(request):
 	submitted = 'newuser.submitted'
 
 	email, passwords, message = '', ('', '', '', ''), ''
+	email = 'douglasm@pontiflex.com'
+	passwords = ('password', 'password', 'password1', 'password1')
 
 	if submitted in request.params:
 		email = request.POST[mail_field[0]]

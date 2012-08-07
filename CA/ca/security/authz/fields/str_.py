@@ -17,6 +17,9 @@ class StrField(Field):
 		super(StrField, self).__init__(action, name)
 		self.value = value
 
+	def __repr__(self):
+		return '%s: %s' % (self.name, self.value)
+
 	@predicate
 	@classmethod
 	def like(cls, name, pattern):

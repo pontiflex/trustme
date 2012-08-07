@@ -91,7 +91,7 @@ def capability_finder(userid, request):
 
 		# Add "capability:<action_type>:<access_type>" to the principals for
 		# each capability which was correctly presented as a token in the request
-		principals.extend((('capability:%s:%s' % (c.action, c.type))
+		principals.extend((('capability:%s:%s' % (c.action_type, c.access_type))
 							for c in imap(presented, tokens)
 							if c is not None))
 	return principals

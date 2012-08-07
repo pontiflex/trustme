@@ -49,7 +49,6 @@ def certify(request):
 			raise HTTPBadRequest(e.args[0])
 		return Access(request).perform(csr)
 
-	caps, actions = Access.allowable(request, POLY_ID)
 	return dict(csr_field=csr_field)
 
 class Certify(Action):

@@ -16,6 +16,9 @@ class IntField(Field):
 		super(IntField, self).__init__(action, name)
 		self.value = value
 
+	def __repr__(self):
+		return '%s: %i' % (self.name, self.value)
+
 	@classmethod
 	def _op(cls, name, op, value):
 		return Action.id.in_(cls.name_query(name).filter(op(cls.value, value)))
