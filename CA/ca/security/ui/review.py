@@ -20,7 +20,7 @@ from pyramid.view import view_config
 FORM_TEMPLATE = 'ca:templates/security/ui/review.pt'
 
 
-def review_page(request, action_class):
+def review_page(request, action_class, **kwargs):
 	# Back up the content type, in case it gets changed by a renderer
 	content_type = request.response.content_type
 	try:
@@ -74,7 +74,7 @@ def review_page(request, action_class):
 	finally:
 		request.response.content_type = content_type
 	
-	return dict(forms=forms, answer=HTML(answer))
+	return dict(forms=forms, answer=HTML(answer), **kwargs)
 
 
 	

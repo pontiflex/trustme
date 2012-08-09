@@ -44,12 +44,9 @@ def main(global_config, **settings):
 	config.add_route('login', '/login')
 	config.add_route('logout', '/logout')
 
+	config.add_route('request', '/{type}/request')
 	config.add_route('check', '/{type}/check')
 	config.add_route('review', '/{type}/review')
-
-	config.add_route('certify', '/certify')
-
-	config.add_route('request_user', '/user/request')
 
 	config.scan()
 	return config.make_wsgi_app()

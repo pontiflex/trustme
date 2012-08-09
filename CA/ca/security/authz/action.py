@@ -37,10 +37,9 @@ class Action(Base):
 
 	def perform(self): pass
 
-	def status_render(self, mode):
-		return 'string', mode.upper()
-
 	def render(self, mode):
+		if status:
+			return 'ca:templates/security/ui/status/default.pt', dict(mode=mode)
 		params = dict(action=self, mode=mode)
 		return 'ca:templates/security/ui/render/default.pt', params
 

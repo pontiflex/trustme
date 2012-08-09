@@ -1,7 +1,13 @@
+from ca.security.authn.user import User
+
+from ca.models import DBSession
+
 
 def validate_username(username):
 	if len(username) < 3:
 		return 'Username must be at least 3 characters long'
+	if DBSession.query(User).filter(User.login == username).count() > 0:
+		return 'Username already taken'
 	return ''
 
 def validate_email(email):

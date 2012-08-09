@@ -1,0 +1,10 @@
+<div tal:omit-tag="" tal:condition="False">
+	Arguments:
+		action
+		mode
+</div>
+
+${mode.upper()}
+<div name="${action.serial}:status_${mode}">
+	Username: ${action.user.login}
+</div>

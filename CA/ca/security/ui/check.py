@@ -20,14 +20,14 @@ def __check(action_class, serial):
 	if req is None:
 		return HTTPNotFound('Invalid serial number')
 	if Access.processed(req, True):
-		return req.status_render('approved')
+		return req.render('approved', True)
 	if Access.processed(req, False):
-		return req.status_render('denied')
+		return req.render('denied', True)
 	if Access.filtered(req):
-		return req.status_render('pending')
-	return req.status_render('rejected')
+		return req.render('pending', True)
+	return req.render('rejected', True)
 
-def check_page(request, action_class):
+def check_page(request, action_class, **kwargs):
 	# Back up the content type, in case it gets changed by a renderer
 	content_type = request.response.content_type
 	try:
@@ -50,6 +50,6 @@ def check_page(request, action_class):
 	finally:
 		request.response.content_type = content_type
 
-	return dict(form=HTML(form), answer=HTML(answer))
+	return dict(form=HTML(form), answer=HTML(answer), **kwargs)
 
 

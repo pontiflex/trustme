@@ -1,0 +1,6 @@
+<div tal:omit-tag="" tal:condition="False">
+	Arguments:
+		mode
+</div>
+
+${mode.upper()}

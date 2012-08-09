@@ -8,6 +8,9 @@ from ca.security.authz.fields.str_ import StrField
 from ca.security.parsers.openssl import RawInput
 from ca.security.parsers.pkcs10_req import PKCS10Request
 
+from ca.security.ui.check import check_page
+from ca.security.ui.review import review_page
+
 from ca.models import DBSession
 
 from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
@@ -18,41 +21,15 @@ from sqlalchemy import Column, ForeignKey, Integer, Text
 from sqlalchemy import not_
 
 
-POLY_ID = 'certify'
+REQUEST_TEMPLATE = 'ca:templates/security/authz/actions/certify.pt'
+CHECK_TEMPLATE = 'ca:templates/security/ui/check/default.pt'
+REVIEW_TEMPLATE = 'ca:templates/security/ui/review/default.pt'
+MATCH = 'type=%s' % 'certify'
 
-
-def check_cert(request):
-	if 'serial' in request.POST:
-		serial = request.POST['serial'].replace(' ', '+')
-		req = (DBSession.query(Certify)
-				.filter(Certify.serial == serial)
-				.first())
-		if req is None:
-			raise HTTPNotFound('Invalid serial number')
-		if Access.processed(req):
-			return Response(req.cert)
-		if Access.processed(req, False):
-			return Response('Denied')
-		if Access.filtered(req):
-			return Response('Pending')
-		return Response('Rejected')
-	return Response('<html><head></head><body><form method="post"><input type="text" name="serial"></input><input type="submit" value="Check" /></form></body></html>')
-
-@view_config(route_name='certify', renderer='ca:templates/security/authz/actions/certify.pt')
-def certify(request):
-	csr_field = 'csr'
-	if csr_field in request.POST:
-		try:
-			csr = Certify(request.POST[csr_field])
-		except ValueError as e:
-			raise HTTPBadRequest(e.args[0])
-		return Access(request).perform(csr)
-
-	return dict(csr_field=csr_field)
 
 class Certify(Action):
 	__tablename__ = 'certification_requests'
-	__mapper_args__ = {'polymorphic_identity':POLY_ID}
+	__mapper_args__ = {'polymorphic_identity':'certify'}
 	id = Column(Integer, ForeignKey(Action.id), primary_key=True)
 	csr = Column(Text, nullable=False)
 	cert = Column(Text)
@@ -73,9 +50,33 @@ class Certify(Action):
 		self.fields.append(StrField(self, 'keyAlgorithm', req.key_alg))
 		self.fields.append(StrField(self, 'signatureAlgorithm', req.sig_alg))
 
+	@classmethod
+	def readable(cls):
+		return 'certification'
+
 	def perform(self):
 		self.cert = 'TODO: Sign cert<br>%s' % self.serial
 		return Response(self.cert)
 
-	
+
+@view_config(route_name='check', match_param=MATCH, renderer=CHECK_TEMPLATE)
+def check_csr(request):
+	return check_page(request, Certify, type='Certification')
+
+@view_config(route_name='review', match_param=MATCH, renderer=REVIEW_TEMPLATE)
+def approve_csr(request):
+	return review_page(request, Certify, type='Certification')
+
+
+@view_config(route_name='request', match_param=MATCH, renderer=REQUEST_TEMPLATE)
+def certify(request):
+	csr_field = 'csr'
+	if csr_field in request.POST:
+		try:
+			csr = Certify(request.POST[csr_field])
+		except ValueError as e:
+			raise HTTPBadRequest(e.args[0])
+		return Access(request).perform(csr)
+
+	return dict(csr_field=csr_field)
 
