@@ -11,6 +11,9 @@ from ca.security.authn.credentials import (
 		validate_passwords,
 	)
 
+from ca.security.ui.check import check_page
+from ca.security.ui.review import review_page
+
 from ca.models import DBSession
 
 from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden, HTTPNotFound
@@ -22,8 +25,9 @@ from sqlalchemy import Column, ForeignKey, Integer, PickleType
 from sqlalchemy.exc import IntegrityError
 
 
-POLY_ID = 'newuser'
 TEMPLATE = 'ca:templates/security/authz/actions/newuser.pt'
+CHECK_TEMPLATE = 'ca:templates/security/ui/check/default.pt'
+REVIEW_TEMPLATE = 'ca:templates/security/ui/review/default.pt'
 
 
 
@@ -61,37 +65,13 @@ def request_user(request):
 		passwords = passwords,
 		submitted = submitted,
 		)
-
-@view_config(route_name='approve_user', renderer=TEMPLATE, permission=Authenticated)
-def approve_user(request):
-	action_field = 'action_id'
-
-	performed = None
-	access = Access(request)
-	allowable = access.allowable(POLY_ID)
-	if action_field in request.POST:
-		action = DBSession.query(NewUser).get(request.POST[action_field])
-		if action is None or action not in allowable:
-			raise HTTPNotFound('Invalid action id')
-		access.perform(action, allowable[action][0])
-		performed = action
-	options = ''
-	nonce = request.session.get_csrf_token()
-	for action in allowable:
-		if action is performed:
-			continue
-		form = '<input type="hidden" name="%s" value="%i" />' % (action_field, action.id)
-		for field in action.fields:
-			options += '%s<br/>' % (field)
-		options += AccessCapability.access(nonce, allowable[action], request.url, 'Confirm', form=form) + '<br/>'
-	return Response(options)
 	
 	
 
 
 class NewUser(Action):
 	__tablename__ = 'new_users'
-	__mapper_args__ = {'polymorphic_identity':POLY_ID}
+	__mapper_args__ = {'polymorphic_identity':'newuser'}
 	id = Column(Integer, ForeignKey(Action.id), primary_key=True)
 	user = Column(PickleType, nullable=False)
 
@@ -102,10 +82,26 @@ class NewUser(Action):
 		self.fields.append(StrField(self, 'login', user.login))
 		self.fields.append(StrField(self, 'email', user.email))
 
+	@classmethod
+	def readable(cls):
+		return 'new user'
+
 	def perform(self):
-		try:
-			DBSession.add(self.user)
-		except IntegrityError:
-			raise HTTPBadRequest('Username already taken')
-		return Response('Account successfully created')
+		if DBSession.query(User).filter(User.login == self.user.login).count() > 0:
+			return HTTPBadRequest('That username already exists')
+		DBSession.add(self.user)			
+		return 'Account successfully created'
+
+	def render(self, mode):
+		params = dict(action=self, mode=mode)
+		return 'ca:templates/security/ui/render/newuser.pt', params
+
+@view_config(route_name='check', match_param='type=user', renderer=CHECK_TEMPLATE)
+def check_user(request):
+	return check_page(request, NewUser)
+
+@view_config(route_name='review', match_param='type=user', renderer=REVIEW_TEMPLATE)
+def approve_user(request):
+	return review_page(request, NewUser)
+
 

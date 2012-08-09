@@ -17,6 +17,9 @@ from sqlalchemy.orm import relationship, backref, reconstructor
 from time import time
 
 
+TEMPLATE = 'ca:templates/security/authz/capability.pt'
+
+
 CAP_BYTES = 40
 
 ACCESS_USE = 'access'

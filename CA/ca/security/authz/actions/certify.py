@@ -21,7 +21,6 @@ from sqlalchemy import not_
 POLY_ID = 'certify'
 
 
-@view_config(route_name='check_cert')
 def check_cert(request):
 	if 'serial' in request.POST:
 		serial = request.POST['serial'].replace(' ', '+')

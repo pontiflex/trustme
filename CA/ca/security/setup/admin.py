@@ -1,5 +1,5 @@
 from ca.security.authz.capability import AdminCapability, GrantCapability
-from ca.security.authz.actions.newuser import POLY_ID as NEW_USER_TYPE
+from ca.security.authz.actions.newuser import NewUser
 from ca.security.authz.access import FILTER as FILTER_ACCESS, EXIT as PROCESS_ACCESS
 
 from ca.security.authn.user import User
@@ -52,7 +52,7 @@ def setup_admin(request):
 			user_root = User('USERS', email, passwords[2])
 			DBSession.add(user_root)
 			for access_type in FILTER_ACCESS + PROCESS_ACCESS:
-				grant = GrantCapability(user_root, NEW_USER_TYPE, access_type)				
+				grant = GrantCapability(user_root, NewUser.subtype(), access_type)				
 				DBSession.add(grant)
 				access = grant.grant(user_root)
 				DBSession.add(access)

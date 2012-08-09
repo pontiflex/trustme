@@ -1,0 +1,9 @@
+<div tal:omit-tag="" tal:condition="False">
+	Arguments:
+		action
+		mode
+</div>
+
+<div name="${action.serial}:${mode}">
+	Action: ${action.serial}
+</div>

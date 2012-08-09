@@ -71,8 +71,6 @@ class CapabilityAuthorizationPolicy:
 		raise NotImplementedError()
 
 
-
-
 def capability_finder(userid, request):
 	# Always include the Everyone principal
 	principals = [Everyone]

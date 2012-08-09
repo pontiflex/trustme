@@ -64,10 +64,14 @@ class Access(object):
 			action_type, obj = action, False
 			query = q_funcs[0](action).except_(q_funcs[1](action))
 
+		if not auto and self.user is None:
+			return False
 		cap_cls = FilterCapability if auto else AccessCapability
 		caps = cap_cls.usable(user=(None if auto else self.user),
 							  action_type=action_type,
 							  access_types=access_types)
+		if not caps:
+			return False
 		ret = [] if obj else {}
 		for cap in caps:
 			cons = cap.constraint
@@ -155,12 +159,11 @@ class Access(object):
 					# If the access is an approval for processing, perform the action
 					return action.perform()
 				# Otherwise, logging this access is enough to mark the action as denied
-				return HTTPForbidden('Denied')
+				return HTTPForbidden('DENIED')  if vetted else 'Request marked as denied'
 			elif at in FILTER:
-				# Make sure that the action has been requested but not filtered
-				# before making any attempt to process its filtration
-				if not vetted and not self.filters(action, False):
-					raise HTTPForbidden('Action not available for filtering')
+				# Filtering is only done automatically
+				if not vetted:
+					raise RuntimeError('Request filtering must be automatic')
 				if at == FILTER[0]:
 					# If this access is letting the action through the filter, failure to
 					# take further automatic action should simply stop execution. Possible
@@ -170,7 +173,7 @@ class Access(object):
 					def fail(msg): return value
 				else:
 					# Otherwise, logging this access is enough to mark the action as rejected
-					return HTTPForbidden('Rejected')
+					return HTTPForbidden('Request Rejected')
 			elif at == ENTER:
 				# If this access is a new request, failure should raise an unauthorized
 				# exception and store the failed access. Possible automatic accesses are

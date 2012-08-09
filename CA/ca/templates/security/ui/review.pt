@@ -1,0 +1,15 @@
+<div tal:omit-tag="" tal:condition="False">
+	Arguments:
+		serial_field
+		serial
+		info
+		credentials
+		buttons
+</div>
+
+${info}
+<form method="POST">
+	<input type="hidden" name="${serial_field}" value="${serial}" />
+	${credentials}
+	<input type="submit" name="${button[0]}" value="${button[1]}" tal:repeat="button buttons" />
+</form>

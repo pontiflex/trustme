@@ -27,7 +27,23 @@ class Action(Base):
 	def __init__(self):
 		self.serial = rand64(SERIAL_BYTES)
 
-	def perform(self):	pass
+	@classmethod
+	def subtype(cls):
+		return cls.__mapper_args__.get('polymorphic_identity')
+
+	@classmethod
+	def readable(cls):
+		return cls.subtype()
+
+	def perform(self): pass
+
+	def status_render(self, mode):
+		return 'string', mode.upper()
+
+	def render(self, mode):
+		params = dict(action=self, mode=mode)
+		return 'ca:templates/security/ui/render/default.pt', params
+
 
 
 class Field(Base):
@@ -51,9 +67,6 @@ class Field(Base):
 	def __init__(self, action, name):
 		self.action = action
 		self.name = name
-
-	def __repr__(self):
-		return self.name
 
 	@classmethod
 	def name_query(cls, name):

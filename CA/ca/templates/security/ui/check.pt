@@ -1,0 +1,11 @@
+<div tal:omit-tag="" tal:condition="False">
+	Arguments:
+		serial
+		serial_field
+		form_field
+</div>
+
+<form method="POST">
+	<input type="text" name="${serial_field}" value="${serial}" />
+	<input type="submit" name="${form_field}" value="Check" />
+</form>
