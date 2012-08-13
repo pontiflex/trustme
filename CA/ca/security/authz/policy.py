@@ -1,12 +1,17 @@
-from ca.security.authz.capability import Capability, AccessCapability
+from ca.security.authz.capability import AccessCapability
 from ca.constants.security.authz.values import AUTH_POST_KEY
 
 from ca.security.authn.user import User
+
+from ca.security.ui.literal import HTML
 
 from pyramid.security import Everyone, Authenticated, NO_PERMISSION_REQUIRED
 from pyramid.view import view_config
 
 from itertools import imap
+
+
+DETECTED_CSRF = 'ca.security.authz.policy.__detected_csrf__'
 
 
 class CapabilityAuthorizationPolicy:
@@ -69,6 +74,22 @@ class CapabilityAuthorizationPolicy:
 
 	def principals_allowed_by_permission(self, context, permission):
 		raise NotImplementedError()
+
+
+def offer_creds(request, caps=[None]):
+	digest = AccessCapability.present(request.session.get_csrf_token())
+	ret = ''
+	for cap in caps:
+		ret += '<input type="hidden" name="%s" value="%s" />\n' % (AUTH_POST_KEY, digest(cap))
+	return HTML(ret)
+
+def check_creds(request, caps=None):
+	user = User.authenticated(request)
+	digest = AccessCapability.present(request.session.get_csrf_token())
+	offered = set(request.POST.getall(AUTH_POST_KEY))
+	if caps is None:
+		caps = [None] if user is None else AccessCapability.usable(user=user)
+	return [c for c in caps if digest(c) in offered and (c is None or c.user == user)]
 
 
 def capability_finder(userid, request):

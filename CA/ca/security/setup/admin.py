@@ -1,5 +1,6 @@
 from ca.security.authz.capability import AdminCapability, GrantCapability
 from ca.security.authz.actions.newuser import NewUser
+from ca.security.authz.constraint import AndBaseConstraint
 from ca.security.authz.access import FILTER as FILTER_ACCESS, EXIT as PROCESS_ACCESS
 
 from ca.security.authn.user import User
@@ -52,12 +53,11 @@ def setup_admin(request):
 			user_root = User('USERS', email, passwords[2])
 			DBSession.add(user_root)
 			for access_type in FILTER_ACCESS + PROCESS_ACCESS:
-				grant = GrantCapability(user_root, NewUser.subtype(), access_type)				
+				grant = GrantCapability(user_root, NewUser, access_type)				
 				DBSession.add(grant)
-				access = grant.grant(user_root)
+				cons = AndBaseConstraint(NewUser.login_like, 'bob')
+				access = grant.grant(user_root, cons)
 				DBSession.add(access)
-				if access_type == FILTER_ACCESS[0]:
-					DBSession.add(access.auto())
 
 			return HTTPFound(location=request.route_url('home'),
 							 headers=remember(request, 'USERS'))

@@ -1,6 +1,8 @@
 <!--
 Parameters:
 	csr_field: Name of CSR input field
+	csr: Last contents of CSR input field
+	credentials: Rendered Capability tokens
 -->
 
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
@@ -15,7 +17,8 @@ Parameters:
 
 <body>
 	<form method="post">
-		<textarea name="${csr_field}"></textarea>
+		<textarea name="${csr_field}">${csr}</textarea>
+		${credentials}
 		<input type="submit" value="Request" />
 	</form>
 </body>

@@ -5,6 +5,8 @@ from ca.security.algorithms import rand64, slow_equals
 from ca.security.authn.user import User
 from ca.constants.security.authz.values import AUTH_POST_KEY
 
+from ca.security.ui.literal import HTML
+
 from ca.models import Base, DBSession
 
 from pyramid.httpexceptions import HTTPFound, HTTPUnauthorized
@@ -17,9 +19,6 @@ from sqlalchemy.orm import relationship, backref, reconstructor
 from time import time
 
 
-TEMPLATE = 'ca:templates/security/authz/capability.pt'
-
-
 CAP_BYTES = 40
 
 ACCESS_USE = 'access'
@@ -27,7 +26,7 @@ GRANT_USE = 'grant'
 ADMIN_USE = 'admin'
 FILTER_USE = 'filter'
 USES = (ACCESS_USE, GRANT_USE, ADMIN_USE, FILTER_USE)
-ADMIN_USES = (ADMIN_USE,)
+ADMIN_USES = (GRANT_USE, ADMIN_USE,)
 NORMAL_USES = (ACCESS_USE, GRANT_USE, FILTER_USE)
 
 
@@ -41,7 +40,7 @@ class Capability(Base):
 	use = Column(Enum(*USES, name='cap_use_types'), nullable=False)
 
 	key = Column(String(size64(CAP_BYTES)), nullable=False)
-	action_type = Column(String(30))
+	action_class = Column(PickleType)
 	access_type = Column(String(30))
 
 	# FIXME: This should really have a ForeignKey constraint on it
@@ -58,7 +57,7 @@ class Capability(Base):
 			raise TypeError('Capability cannot be directly instantiatied')
 		return super(Capability, cls).__new__(cls, *args, **kwargs)
 
-	def __init__(self, user, action_type=None, access_type=None, start_time=None, end_time=None, parent=None):
+	def __init__(self, user, action_class=None, access_type=None, start_time=None, end_time=None, parent=None):
 		# Make sure the given user is allowed to have this capability
 		if user.is_admin():
 			if self.use not in ADMIN_USES:
@@ -69,7 +68,7 @@ class Capability(Base):
 		if parent is not None:
 			# Action/access types default to those of a non-admin parent
 			if parent.use != ADMIN_USE:
-				action_type = parent.action_type
+				action_class = parent.action_class
 				access_type = parent.access_type
 			# Missing start/end times default to those of the parent,
 			# while given ones must fall within any limits set by the parent
@@ -86,7 +85,7 @@ class Capability(Base):
 		self.user = user
 		self.key = rand64(CAP_BYTES)
 		self.parent = parent
-		self.action_type = action_type
+		self.action_class = action_class
 		self.access_type = access_type
 		self.start_time = start_time
 		self.end_time = end_time
@@ -99,36 +98,14 @@ class Capability(Base):
 		# Cache local validity
 		self._valid, _ = self.__local_valid()
 
-	@staticmethod
-	def present(nonce):
-		# The function returns a MAC where the key is the given nonce
-		# and the plaintext is the unique "key" of a capability
-		h = mac.create(nonce)
-		def pres(cap):
-			h2 = h.copy()
-			h2.update(cap.key)
-			return to64(h2.digest())
-		return pres
-
 	@classmethod
-	def presented(cls, user, nonce):
-		# Grab the hashing function
-		p = cls.present(nonce)
-		# Grab the user's capabilities of the given type
-		caps = cls.usable(user=user)
-		# Compute a dictionary of the hash tokens for each capability
-		d = {p(c):c for c in caps}
-		# The resulting function looks up the given token in the dictionary
-		return lambda(k): d.get(k)
-
-	@classmethod
-	def usable(cls, t=None, user=None, action_type=None, access_types=None):
+	def usable(cls, t=None, user=None, action_class=None, access_types=None):
 		t = time() // 1 if t is None else t
 		query = DBSession.query(cls)
 		if user is not None:
 			query = query.filter(Capability.user == user)
-		if action_type is not None:
-			query = query.filter(Capability.action_type == action_type)
+		if action_class is not None:
+			query = query.filter(Capability.action_class == action_class)
 		if access_types is not None:
 			query = query.filter(Capability.access_type.in_(access_types))
 		query = (query.filter(Capability.revoked == None)
@@ -193,6 +170,8 @@ class Capability(Base):
 		return child.revoked
 
 	def relinquish(self):
+		if self.parent is None:
+			raise ValueError('Root capabilities cannot be relinquished')
 		# The capability "revokes" and returns itself
 		self.revoked = self.id
 		return self
@@ -216,23 +195,33 @@ class AccessCapability(Capability):
 														 end_time=end_time)
 				.constrain(constraint))
 
+	@staticmethod
+	def present(nonce):
+		# The function returns a MAC where the key is the given nonce
+		# and the plaintext is the unique "key" of a capability
+		h = mac.create(nonce)
+		def pres(cap):
+			h2 = h.copy()
+			# If passed the null requesting capability, hash the nonce instead
+			h2.update(nonce if cap is None else cap.key)
+			return to64(h2.digest())
+		return pres
+
 	@classmethod
-	def access(cls, nonce, caps, target=None, button='Go', id=None, form=''):
-		# Grab the function to compute hash tokens for the capabilities
-		present = cls.present(nonce)
-		# Compute the tokens and create a hidden input for each one
-		keys = ''.join(('<input type="hidden" name="%s" value="%s" />'
-							% (AUTH_POST_KEY, cap)
-						 for cap in map(present, caps)))
-		# If no target was given, just return the hidden inputs
-		if target is None:
-			return keys
-		# Otherwise return a form with the given id, non-token contents, and button label
-		id = ' ' if id is None else ' id="%s" ' % str(id)
-		target = ' ' if target is None else ' action="%s"' % str(target)
-		open = '<form%smethod="POST"%s>%s' % (id, target, keys)
-		close = '%s<input type="submit" value="%s" /></form>' % (form, button)
-		return open + close
+	def presented(cls, user, nonce):
+		# Grab the hashing function
+		p = cls.present(nonce)
+		# Grab the user's capabilities of the given type
+		caps = cls.usable(user=user)
+		# Include the null requesting capability
+		caps.append(None)
+		# Compute a dictionary of the hash tokens for each capability
+		d = {p(c):c for c in caps}
+		# The resulting function looks up the given token in the dictionary
+		return lambda(k): d.get(k)
+		
+		
+		
 
 class GrantCapability(Capability):
 	__mapper_args__ = {'polymorphic_identity':GRANT_USE}
@@ -245,9 +234,9 @@ class GrantCapability(Capability):
 class AdminCapability(Capability):
 	__mapper_args__ = {'polymorphic_identity':ADMIN_USE}
 
-	def grant(self, user, action_type, access_type, constraint=None, start_time=None, end_time=None, grant=False):
+	def grant(self, user, action_class, access_type, constraint=None, start_time=None, end_time=None, grant=False):
 		Cap = GrantCapability if grant else AccessCapability
-		return (Cap(user, action_type, access_type, start_time, end_time, self)
+		return (Cap(user, action_class, access_type, start_time, end_time, self)
 					.constrain(constraint))
 
 class FilterCapability(Capability):

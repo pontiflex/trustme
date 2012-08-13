@@ -1,11 +1,8 @@
-from ca.security.algorithms import size64, rand64
 from ca.security.authz.access import Access
 from ca.security.authz.action import Action
+from ca.security.authz.policy import offer_creds
 
-from ca.security.authz.fields.int_ import IntField
-from ca.security.authz.fields.str_ import StrField
-
-from ca.security.parsers.openssl import RawInput
+from ca.security.parsers.openssl import invoke, RawInput
 from ca.security.parsers.pkcs10_req import PKCS10Request
 
 from ca.security.ui.check import check_page
@@ -44,11 +41,11 @@ class Certify(Action):
 			if not req.valid:
 				raise ValueError('Error parsing CSR')
 
-		self.fields.append(IntField(self, 'version', req.version))
+		"""self.fields.append(IntField(self, 'version', req.version))
 		self.fields.extend((StrField(self, 'name.%s' % n, v)
 							for n,v in req.name.iteritems()))
 		self.fields.append(StrField(self, 'keyAlgorithm', req.key_alg))
-		self.fields.append(StrField(self, 'signatureAlgorithm', req.sig_alg))
+		self.fields.append(StrField(self, 'signatureAlgorithm', req.sig_alg))"""
 
 	@classmethod
 	def readable(cls):
@@ -71,12 +68,14 @@ def approve_csr(request):
 @view_config(route_name='request', match_param=MATCH, renderer=REQUEST_TEMPLATE)
 def certify(request):
 	csr_field = 'csr'
+	csr_text = ''
 	if csr_field in request.POST:
 		try:
-			csr = Certify(request.POST[csr_field])
+			csr_text = request.POST[csr_field]
+			csr = Certify(csr_text)
 		except ValueError as e:
 			raise HTTPBadRequest(e.args[0])
 		return Access(request).perform(csr)
 
-	return dict(csr_field=csr_field)
+	return dict(csr_field=csr_field, csr=csr_text, credentials=offer_creds(request))
 

@@ -3,6 +3,7 @@ Parameters:
 	name_field: Username field name and size
 	mail_field: Email field name and size
 	pass_fields: Password field names
+	credentials: Rendered capability tokens
 	submitted: Submitted hidden value
 	message: Failure message from last submission
 	username: Last contents of username input
@@ -28,6 +29,7 @@ Parameters:
 		Email:<input type="text" name="${mail_field[0]}" maxlength="${mail_field[1]}" value="${email}" /><br/>
 		Password:<input type="password" name="${pass_fields[0]}" value="${passwords[0]}" /><br/>
 		Confirm Password:<input type="password" name="${pass_fields[1]}" value="${passwords[1]}" /><br/>
+		${credentials}
 		<input type="hidden" name="${submitted}" value="Setup Admin" />
 		<input type="submit" value="Finish" />
 	</form><br/>

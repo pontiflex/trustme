@@ -44,31 +44,3 @@ class Action(Base):
 		return 'ca:templates/security/ui/render/default.pt', params
 
 
-
-class Field(Base):
-	__tablename__ = 'fields'
-	__mapper_args__ = {'polymorphic_on':'type',  'with_polymorphic':'*'}
-	__table_args__ = (Index('field_index', 'action_id', 'name', unique=True), )
-
-	id = Column(Integer, Sequence('field_id_seq'), primary_key=True)
-	type = Column(String(30), nullable=False)
-	
-	action_id = Column(Integer, ForeignKey(Action.id))
-	name = Column(String(30), nullable=False)
-
-	action = relationship(Action, backref=backref('fields'))
-
-	def __new__(cls, *args, **kwargs):
-		if cls is Field:
-			raise TypeError('Field cannot be directly instantiatied')
-		return super(Field, cls).__new__(cls, *args, **kwargs)
-
-	def __init__(self, action, name):
-		self.action = action
-		self.name = name
-
-	@classmethod
-	def name_query(cls, name):
-		return DBSession.query(Action.id).join(cls).filter(cls.name == name)
-
-

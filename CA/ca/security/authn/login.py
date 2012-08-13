@@ -52,6 +52,8 @@ def login(request):
 		user = User.verify(login, password)
 		if user:
 			if verify_puzzle(request.url, login, password, solution):
+				# Reset token on login
+				request.session.new_csrf_token()
 				headers = remember(request, login)
 				return HTTPFound(location=came_from,
 					headers=headers)
@@ -72,6 +74,8 @@ def login(request):
 
 @view_config(route_name='logout')
 def logout(request):
+	# Reset token on logout
+	request.session.new_csrf_token()
 	headers = forget(request)
 	return HTTPFound(location=request.route_url('home'), headers=headers)
 

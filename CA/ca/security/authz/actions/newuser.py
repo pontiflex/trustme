@@ -1,8 +1,7 @@
 from ca.security.authz.access import Access
 from ca.security.authz.action import Action
-from ca.security.authz.capability import AccessCapability
-
-from ca.security.authz.fields.str_ import StrField
+from ca.security.authz.policy import offer_creds
+from ca.security.authz.predicate import predicate
 
 from ca.security.authn.user import User
 from ca.security.authn.credentials import (
@@ -16,12 +15,11 @@ from ca.security.ui.review import review_page
 
 from ca.models import DBSession
 
-from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden, HTTPNotFound
-from pyramid.security import remember, Authenticated
-from pyramid.response import Response
+from pyramid.httpexceptions import HTTPException, HTTPBadRequest, HTTPForbidden, HTTPNotFound
+from pyramid.security import Authenticated
 from pyramid.view import view_config
 
-from sqlalchemy import Column, ForeignKey, Integer, PickleType
+from sqlalchemy import Column, ForeignKey, Integer, String, PickleType
 from sqlalchemy.exc import IntegrityError
 
 
@@ -38,13 +36,14 @@ class NewUser(Action):
 	__mapper_args__ = {'polymorphic_identity':'newuser'}
 	id = Column(Integer, ForeignKey(Action.id), primary_key=True)
 	user = Column(PickleType, nullable=False)
+	login = Column(String(User.login.property.columns[0].type.length), nullable=False)
+	email = Column(String(User.email.property.columns[0].type.length), nullable=False)
 
 	def __init__(self, user):
 		super(NewUser, self).__init__()
 		self.user = user
-
-		self.fields.append(StrField(self, 'login', user.login))
-		self.fields.append(StrField(self, 'email', user.email))
+		self.login = user.login
+		self.email = user.email
 
 	@classmethod
 	def readable(cls):
@@ -62,6 +61,16 @@ class NewUser(Action):
 			return STATUS_TEMPLATE, params
 		return RENDER_TEMPLATE, params
 
+	@predicate
+	@classmethod
+	def login_like(cls, pattern):
+		return cls.login.like(pattern)
+
+	@predicate
+	@classmethod
+	def email_like(cls, pattern):
+		return cls.email.like(pattern)
+
 
 @view_config(route_name='check', match_param=MATCH, renderer=CHECK_TEMPLATE)
 def check_user(request):
@@ -78,6 +87,7 @@ def request_user(request):
 	name_field = 'username', User.login.property.columns[0].type.length
 	mail_field = 'email', User.email.property.columns[0].type.length
 	pass_fields = 'pass1', 'pass2'
+	cap_field = 'CAPS'
 	submitted = 'newuser.submitted'
 
 	username, email, passwords, message = '', '', ('', ''), ''
@@ -95,12 +105,17 @@ def request_user(request):
 		if not message:	message = validate_passwords(passwords)
 		if not message:
 			new = NewUser(User(username, email, passwords[0]))
-			return Access(request).perform(new)	
+			username, email, passwords = '', '', ('', '')
+			try:
+				message = Access(request).perform(new)
+			except HTTPException as e:
+				message = e
 
 	return dict(
 		name_field = name_field,
 		mail_field = mail_field,
 		pass_fields = pass_fields,
+		credentials = offer_creds(request),
 		message = message,
 		username = username,
 		email = email,

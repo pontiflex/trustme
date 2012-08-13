@@ -2,7 +2,6 @@ from ca.models import DBSession, Base
 
 from ca.security.authn import user
 from ca.security.authz import access, action, capability, constraint
-from ca.security.authz.fields import *
 from ca.security.authz.actions import *
 
 from sqlalchemy import engine_from_config

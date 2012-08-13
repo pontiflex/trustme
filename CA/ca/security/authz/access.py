@@ -4,6 +4,7 @@ from ca.security.authz.capability import (
 		AccessCapability,
 		FilterCapability,
 	)
+from ca.security.authz.policy import check_creds
 from ca.security.authz.predicate import predicate
 
 from ca.security.authn.user import User
@@ -26,9 +27,15 @@ FILTER = ('accept', 'reject')
 EXIT = ('approve', 'deny')
 
 
+NO_FILTERS = "You don't have permission to accept this action and no automatic filters are configured to accept it."
+FILTER_REJECT = "You don't have permission to accept this action and an automatic filter is configured to reject it."
+FILTER_DENY = "You don't have permission to approve this action and an automatic filter is configured to deny it."
+
+
 class Access(object):
-	def __init__(self, request):
+	def __init__(self, request, expected_caps=None):
 		self.user = User.authenticated(request)
+		self.__check = lambda(cap): cap in check_creds(request, [cap])
 		self.address = request.client_addr
 		self.time = time() // 1
 		self.__performed = False
@@ -50,25 +57,37 @@ class Access(object):
 		requested = (q1, lambda(a): self.filtered(a, None))
 		return self.__acceptable(action, FILTER, requested, auto)
 
+	def own_filters(self, action):
+		q1 = ((lambda(a): True) if isinstance(action, Action)
+					else DBSession.query(Action).filter(Action.type == action))
+		requested = (q1, lambda(a): self.filtered(a, None))
+		return self.__acceptable(action, (FILTER[0],), requested)
+
 	def processes(self, action, auto):
 		q1 = lambda(a): not self.filtered(a, False) if auto else self.filtered(a, True)
 		filtered = (q1, lambda(a): self.processed(a, None))
 		return self.__acceptable(action, EXIT, filtered, auto)
 
+	def own_processes(self, action):
+		q1 = ((lambda(a): True) if isinstance(action, Action)
+					else DBSession.query(Action).filter(Action.type == action))
+		filtered = (q1, lambda(a): self.processed(a, None))
+		return self.__acceptable(action, (EXIT[0],), filtered)
+
 	def __acceptable(self, action, access_types, q_funcs, auto=False):
 		if isinstance(action, Action):
-			action_type, obj = action.type, True			
+			action_class, obj = action.__class__, True			
 			if not q_funcs[0](action) or q_funcs[1](action):
 				return []
 		else:
-			action_type, obj = action, False
+			action_class, obj = action, False
 			query = q_funcs[0](action).except_(q_funcs[1](action))
 
 		if not auto and self.user is None:
 			return False
 		cap_cls = FilterCapability if auto else AccessCapability
 		caps = cap_cls.usable(user=(None if auto else self.user),
-							  action_type=action_type,
+							  action_class=action_class,
 							  access_types=access_types)
 		if not caps:
 			return False
@@ -127,14 +146,31 @@ class Access(object):
 						 (EXIT[0] if success else EXIT[1]))
 		return query.distinct()
 
+	def perform_with_one(self, action, capabilities):
+		caps = [c for c in capabilities if self.__check(c)]
+		if not caps:
+			raise HTTPForbidden('No invoked capability was supplied')
+		return self._perform(action, caps[0])
+
 	def perform(self, action, capability=None):
+		# TODO: Add any extra CSRF handling we might want to do
+		# This check is CRUCIAL for security. It checks to make sure
+		# that the Access can only invoke a Capability that was correctly
+		# passed in the underlying request (this includes the None request
+		# Capability). This is what prevents CSRF attacks from occuring.
+		if not self.__check(capability):
+			raise HTTPForbidden('Invoked capability not supplied')
+		return self._perform(action, capability)
+
+	def _perform(self, action, capability):
+		DBSession.add(action)
 		ret = self.__perform(action, capability)
 		self.__performed = True
 		return ret
 
 	def __perform(self, action, capability, vetted=False, value=None):
 		# Don't perform the access again
-		if not vetted and self.__performed:
+		if self.__performed:
 			raise HTTPForbidden('Cannot perform access again')
 		allowed = True
 
@@ -148,7 +184,7 @@ class Access(object):
 				if not vetted:
 					cons = capability.constraint
 					if cons is not None and not cons.allows(action, self):
-						raise HTTPForbidden('Invalid capability')
+						raise HTTPForbidden('Invoked capability does not allow this access')
 
 			if at in EXIT:
 				# Make sure that the action has been filtered but not processed
@@ -159,7 +195,7 @@ class Access(object):
 					# If the access is an approval for processing, perform the action
 					return action.perform()
 				# Otherwise, logging this access is enough to mark the action as denied
-				return HTTPForbidden('DENIED')  if vetted else 'Request marked as denied'
+				return HTTPForbidden(FILTER_DENY) if vetted else 'Request marked as denied'
 			elif at in FILTER:
 				# Filtering is only done automatically
 				if not vetted:
@@ -169,35 +205,47 @@ class Access(object):
 					# take further automatic action should simply stop execution. Possible
 					# automatic accesses are drawn from the EXIT list
 					types = EXIT
-					filters = self.processes(action, True)
+					filters = []
+					# If this is an authenticated request, try proceeding with the requestor's
+					# positive access capabilities. If none exist, then move on to auto-filters
+					if self.user is not None:
+						filters = self.own_processes(action)
+					if not filters:
+						filters = self.processes(action, True)
 					def fail(msg): return value
 				else:
 					# Otherwise, logging this access is enough to mark the action as rejected
-					return HTTPForbidden('Request Rejected')
+					return HTTPForbidden(FILTER_REJECT)
 			elif at == ENTER:
 				# If this access is a new request, failure should raise an unauthorized
 				# exception and store the failed access. Possible automatic accesses are
 				# drawn from the FILTER list
 				types = FILTER
-				filters = self.filters(action, True)
+				filters = []
+				# If this is an authenticated request, try proceeding with the requestor's
+				# positive access capabilities. If none exist, then move on to auto-filters
+				if self.user is not None:
+					filters = self.own_filters(action)
+				if not filters:
+					filters = self.filters(action, True)
 				value = HTTPAccepted(action.serial)
 				def fail(msg): raise HTTPForbidden(msg)
 			else: raise RuntimeError('%s is not a valid access type' % str(at))
 
 			# If no filters actually match the action, then the attempt at automatic
 			# access should fail closed immediately (lack of a no does not mean yes)
-			if not filters: return fail('No filters matched access')
+			if not filters: return fail(NO_FILTERS)
 
 			pos = [cap for cap in filters if cap.access_type == types[0]]
 			neg = [cap for cap in filters if cap.access_type == types[1]]
 			if neg:
 				# If any negative filters were triggered, perform a negative access
-				self.__perform(action, neg[0], True, value)
+				value = self.__perform(action, neg[0], True, value)
 				DBSession.add_all((self.record(action, cap, True) for cap in neg[1:]))
 				DBSession.add_all((self.record(action, cap, False) for cap in pos))
 			else:
 				# Otherwise, perform a positive access
-				self.__perform(action, pos[0], True, value)
+				value = self.__perform(action, pos[0], True, value)
 				DBSession.add_all((self.record(action, cap, True) for cap in pos[1:]))
 
 		except:
