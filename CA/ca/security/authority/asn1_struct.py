@@ -16,28 +16,26 @@ ASN1_LINE = re.compile('^\s*(?P<index>\d+):\s*' +
 class ASN1Struct(object):
 	def __init__(self, path, *args, **kwargs):
 		self.valid = None
-		code, data, err = self._init_invoke('asn1parse', path, *args, **kwargs)
+		code, res = self._init_invoke('asn1parse', path, *args, **kwargs)
 		self.struct = None
-		if self.valid:
-			matches = [ASN1_LINE.match(line).groupdict() for line in data]
-			self.struct = self.__parse(matches)[0]
-		else:
-			err.close()
-		data.close()
+		with res as (data, err):
+			if self.valid:
+				matches = [ASN1_LINE.match(line).groupdict() for line in data]
+				self.struct = self.__parse(matches)[0]
 
 	def _init_invoke(self, *args, **kwargs):
 		valid = self.valid if self.valid is not None else True
 		try:
-			out, err = invoke(*args, **kwargs)
+			res = invoke(*args, **kwargs)
 			code = 0
 			self.valid = valid
 		except OpenSSLError as e:
-			code, out, err = e.code, e.out, e.err
+			code, res = e.code, e.res
 			print '=' * 100
-			print err.read()
-			err.seek(0)
+			print res.err.read()
+			res.err.seek(0)
 			self.valid = False
-		return code, out, err
+		return code, res
 
 	def __repr__(self):
 		return self._repr(lambda:'\n%s' % self.__pretty(self.struct))

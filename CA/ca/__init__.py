@@ -1,4 +1,5 @@
 from ca.models import DBSession
+from ca.security.authority.secrets import Secrets
 from ca.security.authz.policy import capability_finder
 from ca.security.authz.policy import CapabilityAuthorizationPolicy
 
@@ -21,6 +22,9 @@ AUTH_REISSUE = AUTH_TIMEOUT // 10
 def main(global_config, **settings):
 	""" This function returns a Pyramid WSGI application.
 	"""
+	# Parse the CA settings (must occur before creating the Configurator)
+	Secrets.parse_config(settings)
+
 	engine = engine_from_config(settings, 'sqlalchemy.')
 	DBSession.configure(bind=engine)
 
@@ -44,6 +48,7 @@ def main(global_config, **settings):
 	config.add_route('login', '/login')
 	config.add_route('logout', '/logout')
 
+	config.add_route('view', '/{type}')
 	config.add_route('request', '/{type}/request')
 	config.add_route('check', '/{type}/check')
 	config.add_route('review', '/{type}/review')

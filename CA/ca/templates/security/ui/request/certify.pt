@@ -2,6 +2,8 @@
 Parameters:
 	csr_field: Name of CSR input field
 	csr: Last contents of CSR input field
+	submitted: Name of form submit button
+	message: Error message from last request, or empty
 	credentials: Rendered Capability tokens
 -->
 
@@ -19,8 +21,9 @@ Parameters:
 	<form method="post">
 		<textarea name="${csr_field}">${csr}</textarea>
 		${credentials}
-		<input type="submit" value="Request" />
+		<input type="submit" name="${submitted}" value="Request" />
 	</form>
+	${message}
 </body>
 
 </html>

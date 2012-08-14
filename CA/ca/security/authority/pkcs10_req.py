@@ -6,11 +6,8 @@ class PKCS10Request(ASN1Struct):
 	def __init__(self, path, *args, **kwargs):
 		super(PKCS10Request, self).__init__(path, *args, **kwargs)
 		inform = kwargs.get('inform', 'pem')
-		code, data, err = self._init_invoke('req', path, 'verify', inform=inform)
-		data.close()
-		if not self.valid:
-			err.close()
-			return
+		self._init_invoke('req', path, 'verify', inform=inform)
+		if not self.valid: return
 	
 		info = self.struct[0]
 		self.version = int(info[0][1])

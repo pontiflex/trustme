@@ -34,8 +34,9 @@ FILTER_DENY = "You don't have permission to approve this action and an automatic
 
 class Access(object):
 	def __init__(self, request, expected_caps=None):
+		self.request = request
 		self.user = User.authenticated(request)
-		self.__check = lambda(cap): cap in check_creds(request, [cap])
+		self.__check = lambda(caps): check_creds(request, caps)
 		self.address = request.client_addr
 		self.time = time() // 1
 		self.__performed = False
@@ -147,7 +148,7 @@ class Access(object):
 		return query.distinct()
 
 	def perform_with_one(self, action, capabilities):
-		caps = [c for c in capabilities if self.__check(c)]
+		caps = self.__check(caps)
 		if not caps:
 			raise HTTPForbidden('No invoked capability was supplied')
 		return self._perform(action, caps[0])
@@ -158,7 +159,7 @@ class Access(object):
 		# that the Access can only invoke a Capability that was correctly
 		# passed in the underlying request (this includes the None request
 		# Capability). This is what prevents CSRF attacks from occuring.
-		if not self.__check(capability):
+		if not self.__check([capability]):
 			raise HTTPForbidden('Invoked capability not supplied')
 		return self._perform(action, capability)
 
@@ -193,7 +194,7 @@ class Access(object):
 					raise HTTPForbidden('Action not available for processing')
 				if at == EXIT[0]:
 					# If the access is an approval for processing, perform the action
-					return action.perform()
+					return action.perform(self.request)
 				# Otherwise, logging this access is enough to mark the action as denied
 				return HTTPForbidden(FILTER_DENY) if vetted else 'Request marked as denied'
 			elif at in FILTER:

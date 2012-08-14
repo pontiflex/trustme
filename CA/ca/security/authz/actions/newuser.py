@@ -1,5 +1,8 @@
+from ca.security.authz.actions.certify import Certify
+
 from ca.security.authz.access import Access
 from ca.security.authz.action import Action
+from ca.security.authz.capability import AccessCapability
 from ca.security.authz.policy import offer_creds
 from ca.security.authz.predicate import predicate
 
@@ -49,10 +52,13 @@ class NewUser(Action):
 	def readable(cls):
 		return 'new user'
 
-	def perform(self):
+	def perform(self, request):
 		if DBSession.query(User).filter(User.login == self.user.login).count() > 0:
 			return HTTPBadRequest('That username already exists')
-		DBSession.add(self.user)			
+		DBSession.add(self.user)
+		# FIXME: Temporary testing hack to add certify caps to all users
+		DBSession.add(AccessCapability(self.user, Certify, 'accept'))
+		DBSession.add(AccessCapability(self.user, Certify, 'approve'))
 		return 'Account successfully created'
 
 	def render(self, mode, status=False):

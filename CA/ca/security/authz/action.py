@@ -35,7 +35,7 @@ class Action(Base):
 	def readable(cls):
 		return cls.subtype()
 
-	def perform(self): pass
+	def perform(self, request): pass
 
 	def render(self, mode):
 		if status:

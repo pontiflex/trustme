@@ -83,7 +83,7 @@ def offer_creds(request, caps=[None]):
 		ret += '<input type="hidden" name="%s" value="%s" />\n' % (AUTH_POST_KEY, digest(cap))
 	return HTML(ret)
 
-def check_creds(request, caps=None):
+def check_creds(request, caps=[None]):
 	user = User.authenticated(request)
 	digest = AccessCapability.present(request.session.get_csrf_token())
 	offered = set(request.POST.getall(AUTH_POST_KEY))

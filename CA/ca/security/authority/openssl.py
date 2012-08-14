@@ -21,6 +21,26 @@ class RawInput(object):
 	def __exit__(self, type, value, traceback):
 		self.__file.close()
 
+class RawOutput(object):
+	def __init__(self, out, err):
+		try:
+			self.out = open(out[1])
+			self.err = open(err[1])
+		finally:
+			os.close(out[0])
+			os.close(err[0])
+
+	def __enter__(self):
+		return self.out, self.err
+
+	def __exit__(self, type, value, traceback):
+		self.out.close()
+		self.err.close()
+
+class OpenSSLError(StandardError):
+	def __init__(self, code, res):
+		self.code, self.res = code, res
+
 def invoke(cmd, in_=None, *args, **kwargs):
 	params = (kwargs.pop(LIBKEY, OPENSSL), cmd)
 	for arg in kwargs:
@@ -34,16 +54,8 @@ def invoke(cmd, in_=None, *args, **kwargs):
 			params += ('-infiles',) + tuple(in_)
 	out, err = mkstemp(), mkstemp()
 	code = subprocess.call(params, stdout=out[0], stderr=err[0])
-	try:
-		outf, errf = open(out[1]), open(err[1])
-		if code != 0:
-			raise OpenSSLError(code, outf, errf)
-		return outf, errf
-	finally:
-		os.close(out[0])
-		os.close(err[0])
-
-class OpenSSLError(StandardError):
-	def __init__(self, code, out, err):
-		self.code, self.out, self.err = code, out, err
+	res = RawOutput(out, err)
+	if code != 0:
+		raise OpenSSLError(code, res)
+	return res	
 
