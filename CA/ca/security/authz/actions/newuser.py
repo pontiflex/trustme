@@ -58,8 +58,14 @@ class NewUser(Action):
 		DBSession.add(self.user)
 		# FIXME: Temporary testing hack to add certify caps to all users
 		DBSession.add(AccessCapability(self.user, Certify, 'accept'))
+		DBSession.add(AccessCapability(self.user, Certify, 'reject'))
 		DBSession.add(AccessCapability(self.user, Certify, 'approve'))
+		DBSession.add(AccessCapability(self.user, Certify, 'deny'))
 		return 'Account successfully created'
+
+	def revoke(self, request):
+		# TODO
+		pass
 
 	def render(self, mode, status=False):
 		params = dict(action=self, mode=mode)

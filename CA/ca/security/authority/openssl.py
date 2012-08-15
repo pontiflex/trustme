@@ -52,6 +52,8 @@ def invoke(cmd, in_=None, *args, **kwargs):
 			params += ('-in', in_)
 		elif hasattr(in_, '__iter__'):
 			params += ('-infiles',) + tuple(in_)
+	print 'INVOKING%s' % ('.' * 100)
+	print params
 	out, err = mkstemp(), mkstemp()
 	code = subprocess.call(params, stdout=out[0], stderr=err[0])
 	res = RawOutput(out, err)

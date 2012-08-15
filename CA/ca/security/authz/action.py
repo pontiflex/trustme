@@ -1,11 +1,8 @@
 from ca.security.algorithms import size64, rand64
 
-from ca.models import Base, DBSession
+from ca.models import Base
 
-from sqlalchemy import Column, ForeignKey, Sequence, Index
-from sqlalchemy import Integer, String
-from sqlalchemy.orm import relationship, backref, reconstructor
-from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy import Column, Sequence, Integer, String
 
 
 SERIAL_BYTES = 32
@@ -21,7 +18,7 @@ class Action(Base):
 
 	def __new__(cls, *args, **kwargs):
 		if cls is Action:
-			raise TypeError('Action cannot be directly instantiatied')
+			raise TypeError('%s cannot be directly instantiatied' % cls.__name__)
 		return super(Action, cls).__new__(cls, *args, **kwargs)
 
 	def __init__(self):
@@ -35,9 +32,13 @@ class Action(Base):
 	def readable(cls):
 		return cls.subtype()
 
-	def perform(self, request): pass
+	def perform(self, request):
+		return 'Action successfully performed'
 
-	def render(self, mode):
+	def revoke(self, request):
+		return 'Action result revoked'
+
+	def render(self, mode, status=False):
 		if status:
 			return 'ca:templates/security/ui/status/default.pt', dict(mode=mode)
 		params = dict(action=self, mode=mode)

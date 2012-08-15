@@ -41,15 +41,20 @@ class Access(object):
 		self.time = time() // 1
 		self.__performed = False
 
-	def record(self, action, capability, allowed):
+	def __record(self, action, capability, allowed):
 		return AccessRecord(self, action, capability, allowed)
 
-	def save(self, *args, **kwargs):
-		DBSession.add(self.record(*args, **kwargs))
+	def __save(self, *args, **kwargs):
+		DBSession.add(self.__record(*args, **kwargs))
+
 
 	def allowable(self, action):
 		pending = (self.filtered, lambda(a): self.processed(a, None))
 		return self.__acceptable(action, EXIT, pending)
+
+	def revocable(self, action):
+		allowed = (self.processed, None)
+		return self.__acceptable(action, (EXIT[1],), allowed)
 
 	def filters(self, action, auto):
 		def degenerate(a):
@@ -60,7 +65,7 @@ class Access(object):
 
 	def own_filters(self, action):
 		q1 = ((lambda(a): True) if isinstance(action, Action)
-					else DBSession.query(Action).filter(Action.type == action))
+								else (lambda(a): DBSession.query(a)))
 		requested = (q1, lambda(a): self.filtered(a, None))
 		return self.__acceptable(action, (FILTER[0],), requested)
 
@@ -71,18 +76,20 @@ class Access(object):
 
 	def own_processes(self, action):
 		q1 = ((lambda(a): True) if isinstance(action, Action)
-					else DBSession.query(Action).filter(Action.type == action))
+								else (lambda(a): DBSession.query(a)))
 		filtered = (q1, lambda(a): self.processed(a, None))
 		return self.__acceptable(action, (EXIT[0],), filtered)
 
 	def __acceptable(self, action, access_types, q_funcs, auto=False):
 		if isinstance(action, Action):
 			action_class, obj = action.__class__, True			
-			if not q_funcs[0](action) or q_funcs[1](action):
+			if not q_funcs[0](action) or (q_funcs[1] is not None and q_funcs[1](action)):
 				return []
 		else:
-			action_class, obj = action, False
-			query = q_funcs[0](action).except_(q_funcs[1](action))
+			action_class, obj = action, False			
+			query = q_funcs[0](action)
+			if q_funcs[1] is not None:
+				query = query.except_(q_funcs[1](action))
 
 		if not auto and self.user is None:
 			return False
@@ -109,8 +116,8 @@ class Access(object):
 	@classmethod
 	def requested(cls, action):
 		if isinstance(action, Action):
-			return action in cls.requested(action.type)
-		return (DBSession.query(Action)
+			return action in cls.requested(action.__class__)
+		return (DBSession.query(action)
 					.join(AccessRecord)
 					.filter(AccessRecord.capability == None)
 					.distinct())
@@ -118,37 +125,41 @@ class Access(object):
 	@classmethod
 	def filtered(cls, action, success=True):
 		if isinstance(action, Action):
-			if action not in cls.filtered(action.type, success=None): return False
+			if action not in cls.filtered(action.__class__, success=None): return False
 			elif success is None: return True
-			else: return success != (action in cls.filtered(action.type, success=False))
-		query = (DBSession.query(Action)
+			else: return success != (action in cls.filtered(action.__class__, success=False))
+		query = (DBSession.query(action)
 					.join(AccessRecord).join(Capability)
 					.filter(AccessRecord.allowed == True))
 		if success is None:
 			query = query.filter(Capability.access_type.in_(FILTER))
 		else:
-			query = query.filter(Capability.access_type ==
-						 (FILTER[0] if success else FILTER[1]))
+			fail_query = query.filter(Capability.access_type == FILTER[1])
+			if success:
+				query = query.filter(Capability.access_type == FILTER[0]).except_(fail_query)
+			else: query = fail_query
 		return query.distinct()		
 
 	@classmethod
 	def processed(cls, action, success=True):
 		if isinstance(action, Action):
-			if action not in cls.processed(action.type, success=None): return False
+			if action not in cls.processed(action.__class__, success=None): return False
 			elif success is None: return True
-			else: return success != (action in cls.processed(action.type, success=False))
-		query = (DBSession.query(Action)
+			else: return success != (action in cls.processed(action.__class__, success=False))
+		query = (DBSession.query(action)
 					.join(AccessRecord).join(Capability)
 					.filter(AccessRecord.allowed == True))
 		if success is None:
 			query = query.filter(Capability.access_type.in_(EXIT))
 		else:
-			query = query.filter(Capability.access_type ==
-						 (EXIT[0] if success else EXIT[1]))
+			fail_query = query.filter(Capability.access_type == EXIT[1])
+			if success:
+				query = query.filter(Capability.access_type == EXIT[0]).except_(fail_query)
+			else: query = fail_query
 		return query.distinct()
 
 	def perform_with_one(self, action, capabilities):
-		caps = self.__check(caps)
+		caps = self.__check(capabilities)
 		if not caps:
 			raise HTTPForbidden('No invoked capability was supplied')
 		return self._perform(action, caps[0])
@@ -188,13 +199,19 @@ class Access(object):
 						raise HTTPForbidden('Invoked capability does not allow this access')
 
 			if at in EXIT:
-				# Make sure that the action has been filtered but not processed
-				# before making any attempt to process its execution
-				if not vetted and not self.processes(action, False):
+				# Make sure that the action has been filtered before making any attempt to
+				# process its execution
+				if not vetted and not self.filtered(action):
 					raise HTTPForbidden('Action not available for processing')
+				# If the access is an approval for processing, check that the action has not
+				# been processed before, then perform it
 				if at == EXIT[0]:
-					# If the access is an approval for processing, perform the action
+					if self.processed(action, None):
+						raise HTTPForbidden('Action not available for processing')
 					return action.perform(self.request)
+				# Otherwise, if this action has already been approved, this is a revocation
+				if self.processed(action):
+					return action.revoke(self.request)
 				# Otherwise, logging this access is enough to mark the action as denied
 				return HTTPForbidden(FILTER_DENY) if vetted else 'Request marked as denied'
 			elif at in FILTER:
@@ -242,18 +259,18 @@ class Access(object):
 			if neg:
 				# If any negative filters were triggered, perform a negative access
 				value = self.__perform(action, neg[0], True, value)
-				DBSession.add_all((self.record(action, cap, True) for cap in neg[1:]))
-				DBSession.add_all((self.record(action, cap, False) for cap in pos))
+				DBSession.add_all((self.__record(action, cap, True) for cap in neg[1:]))
+				DBSession.add_all((self.__record(action, cap, False) for cap in pos))
 			else:
 				# Otherwise, perform a positive access
 				value = self.__perform(action, pos[0], True, value)
-				DBSession.add_all((self.record(action, cap, True) for cap in pos[1:]))
+				DBSession.add_all((self.__record(action, cap, True) for cap in pos[1:]))
 
 		except:
 			allowed = False
 			raise
 		finally:
-			self.save(action, capability, allowed)
+			self.__save(action, capability, allowed)
 
 		if value is None:
 			raise RuntimeException('Illegal return state')
