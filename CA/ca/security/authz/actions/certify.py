@@ -98,11 +98,11 @@ def check_csr(request):
 	return check_page(request, Certify, type='Certification')
 
 @view_config(route_name='review', match_param=MATCH, renderer=REVIEW_TEMPLATE)
-def approve_csr(request):
+def review_csr(request):
 	return review_page(request, Certify, type='Certification')
 
 @view_config(route_name='revoke', match_param=MATCH, renderer=REVOKE_TEMPLATE)
-def approve_csr(request):
+def revoke_csr(request):
 	return revoke_page(request, Certify, type='Certification')
 
 

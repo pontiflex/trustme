@@ -51,7 +51,6 @@ def main(global_config, **settings):
 
 	config.add_route('crl', '/crl')
 
-	config.add_route('view', '/{type}')
 	config.add_route('request', '/{type}/request')
 	config.add_route('check', '/{type}/check')
 	config.add_route('review', '/{type}/review')

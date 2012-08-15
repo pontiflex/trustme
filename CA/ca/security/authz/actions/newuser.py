@@ -89,7 +89,7 @@ def check_user(request):
 	return check_page(request, NewUser, type='New User')
 
 @view_config(route_name='review', match_param=MATCH, renderer=REVIEW_TEMPLATE)
-def approve_user(request):
+def review_user(request):
 	return review_page(request, NewUser, type='New User')
 
 
