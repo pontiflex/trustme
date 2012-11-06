@@ -1,7 +1,28 @@
+"""
+Copyright 2012 Pontiflex, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
 from algorithms import slow_equals, pbkdf2_hmac_sha1
 
 import random
 import timeit
+
+
+"""This file provides a framework for testing the cryptographic wrappers, and currently
+implements an automatic test of the PBKDF2 function (SHA1 only) against standard test
+vectors and a visual test of slow_equals as compared to =="""
 
 
 _tests = 0

@@ -1,0 +1,6 @@
+Switch to a locally-hosted version of CryptoJS for login client puzzles. Currently the script import can be hijacked and used to execute arbitrary code.
+
+Make sure the production version is HTTPS-ready, and only deployed under HTTPS.
+
+Switch the openssl wrapper to using named pipes (os.mkfifo) instead of temp files to keep sensitive data off the disk
+	

@@ -1,9 +1,31 @@
+"""
+Copyright 2012 Pontiflex, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
 from openssl import invoke, OpenSSLError
 
 from base64 import b64decode
 import re
 
+
+"""This file contains a parser class for raw ASN1 structures"""
+
+
+# List of primitives that contain raw data
 RAW = ['BIT STRING', 'OCTET STRING']
+# Regular expression to parse a line of output from the openssl asn1parse command
 ASN1_LINE = re.compile('^\s*(?P<index>\d+):\s*' +
 							'd=\s*(?P<depth>\d+)\s+' +
 							'hl=\s*(?P<header_length>\d+)\s+' +
@@ -13,7 +35,9 @@ ASN1_LINE = re.compile('^\s*(?P<index>\d+):\s*' +
 							'(?:(?:\\[HEX DUMP\\])?:(?P<value>.+))?$',
 					   re.U)
 
+
 class ASN1Struct(object):
+	"""Raw ASN1 structure parser class"""
 	def __init__(self, path, *args, **kwargs):
 		self.valid = None
 		code, res = self._init_invoke('asn1parse', path, *args, **kwargs)
@@ -75,13 +99,4 @@ class ASN1Struct(object):
 			else: break
 
 		return value, i
-			
-
-
-
-
-if __name__ == '__main__':
-	import sys
-	test = ASN1Struct(sys.argv[1])
-	print test
 
